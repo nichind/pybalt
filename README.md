@@ -3,6 +3,16 @@
   <h3>Pybalt</h3>
   <h5>Python module / CLI to download media using cobalt-api instance</h5>
   <h5>ATM instance default to my own instance, please dont abuse it ^^</h5>
+
+  <br>
+  
+  [![Get on pypi](https://img.shields.io/pypi/v/pybalt.svg)](https://pypi.org/project/pybalt/)
+  [![Last commit](https://img.shields.io/github/last-commit/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
+  [![Pip module installs total downloads](https://img.shields.io/pypi/dm/pybalt.svg)](https://pypi.org/project/pybalt/)
+  [![GitHub stars](https://img.shields.io/github/stars/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
+  
+  </div>
+  
 </div>
 <br>
 <h1>Installation</h1>
