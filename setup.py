@@ -18,6 +18,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'aiohttp',
+        'pytube',
     ],
     classifiers=[
         'Programming Language :: Python :: 3.11',

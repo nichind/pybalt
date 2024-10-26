@@ -1,1 +1,1 @@
-'wsp'
+from .cobalt import *
