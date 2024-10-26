@@ -1,0 +1,61 @@
+<div align="center" style="display: flex; flex-flow: column wrap;">
+  <img src='https://i.imgur.com/IJQgkSJ.png' style='width: 128px'></img>
+  <h3>Pybalt</h3>
+  <h5>Python module / CLI to download media using cobalt-api instance</h5>
+  <h5>ATM instance default to my own instance, please dont abuse it ^^</h5>
+</div>
+<br>
+<h1>Installation</h1>
+<h4>Download using PIP</h4>
+
+```
+python -m pip install pybalt
+```
+
+<h1>Usage & Examples</h1>
+<h3>Inside python file</h3>
+
+```python
+from pybalt import Cobalt
+from asyncio import run
+
+
+async def main():
+    cobalt = Cobalt(api_key='...', api_instance='https://...')
+    print(await cobalt.download("https://www.youtube.com/watch?v=9bZkp7q19f0", quality="1080", path_folder='cute-videos'))
+
+
+if __name__ == "__main__":
+    run(main())
+```
+<h3>With terminal or cmd</h3>
+
+```bash
+python -m pybalt -url 'https://music.youtube.com/watch?v=cxAmzz_tjzc' -folder music -fs pretty
+```
+<h4>Cli Options:</h4>
+
+```bash
+-h, --help            show this help message and exit
+-url URL, -u URL      URL to download
+-list LIST, -l LIST   Path to file with list of URLs
+-quality QUALITY, -q QUALITY, -res QUALITY, -r QUALITY
+                      Video quality to try download
+-folder FOLDER, -f FOLDER
+                      Path to folder
+-instance INSTANCE, -i INSTANCE
+                      Cobalt API instance
+-key KEY, -k KEY      API key
+-playlist PLAYLIST, -pl PLAYLIST
+                      Playlist URL (currently YouTube only)
+-filenameStyle FILENAMESTYLE, -fs FILENAMESTYLE
+                      Filename style
+-audioFormat AUDIOFORMAT, -af AUDIOFORMAT
+                      Audio format
+```
+
+Lets say we want to download YouTube playlist in 4k using my instance with api_key, save all videos to folder 'cat-videos', command would look like that:
+
+```bash
+python -m pybalt -pl 'playlistUrl' -folder cat-videos -q 4k -i https://dwnld.nichind.dev -k API_KEY
+```
