@@ -36,7 +36,7 @@ class CobaltAPI:
 
     async def get_file_url(self,
         url: str,
-        quality: Literal['max', '4320', '2160', '1440', '1080', '720', '480', '360', '240', '144'] = None,
+        quality: Literal['max', '4320', '2160', '1440', '1080', '720', '480', '360', '240', '144'] = '1080',    
         download_mode: Literal['auto', 'audio', 'mute'] = 'auto',
         filename_style: Literal['classic', 'pretty', 'basic', 'nerdy'] = 'pretty',
         audio_format: Literal['best', 'mp3', 'ogg', 'wav', 'opus'] = 'mp3'
@@ -61,7 +61,7 @@ class CobaltAPI:
                 async with cs.post(
                     self.api_instance,
                     json={
-                        'url': url,
+                        'url': url.replace("'", "").replace('"', ''),
                         'videoQuality': quality,
                         'filenameStyle': filename_style,
                         'downloadMode': download_mode,
