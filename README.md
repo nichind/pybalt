@@ -41,7 +41,7 @@ if __name__ == "__main__":
 <h3>With terminal or cmd</h3>
 
 ```bash
-python -m pybalt -url 'https://music.youtube.com/watch?v=cxAmzz_tjzc' -folder music -fs pretty
+pybalt -url 'https://music.youtube.com/watch?v=cxAmzz_tjzc' -folder music -fs pretty
 ```
 <h4>Cli Options:</h4>
 
@@ -67,5 +67,5 @@ python -m pybalt -url 'https://music.youtube.com/watch?v=cxAmzz_tjzc' -folder mu
 Lets say we want to download YouTube playlist in 4k using my instance with api_key, save all videos to folder 'cat-videos', command would look like that:
 
 ```bash
-python -m pybalt -pl 'playlistUrl' -folder cat-videos -q 4k -i https://dwnld.nichind.dev -k API_KEY
+pybalt -pl 'playlistUrl' -folder cat-videos -q 4k -i https://dwnld.nichind.dev -k API_KEY
 ```
