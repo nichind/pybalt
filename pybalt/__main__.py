@@ -14,6 +14,7 @@ async def _():
     parser.add_argument('-playlist', '-pl', type=str, help='Playlist URL (currently YouTube only)', required=False)
     parser.add_argument('-filenameStyle', '-fs', type=str, help='Filename style', required=False)
     parser.add_argument('-audioFormat', '-af', type=str, help='Audio format', required=False)
+    parser.add_argument('-youtubeVideoCodec', '-yvc', help='Youtube video codec', required=False)
     args = parser.parse_args()
     urls = ([args.url] if args.url else []) + ([line.strip() for line in open(args.list)] if args.list else [])
     if not urls and not args.playlist:
@@ -27,6 +28,7 @@ async def _():
             quality=args.quality if args.quality else '1080',
             filename_style=args.filenameStyle if args.filenameStyle else 'pretty',
             audio_format=args.audioFormat if args.audioFormat else 'mp3',
+            youtube_video_codec=args.youtubeVideoCodec if args.youtubeVideoCodec else None
         )
         return
     for url in urls:
@@ -35,6 +37,7 @@ async def _():
             quality=args.quality if args.quality else '1080',
             filename_style=args.filenameStyle if args.filenameStyle else 'pretty',
             audio_format=args.audioFormat if args.audioFormat else 'mp3',
+            youtube_video_codec=args.youtubeVideoCodec if args.youtubeVideoCodec else None
         )
     print('Everything is done! Have a nice day ^w^', 'Consider leaving a star on GitHub: https://github.com/nichind/pybalt', sep='\n')
     

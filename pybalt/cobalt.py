@@ -31,7 +31,7 @@ class CobaltAPI:
         self.headers = {
             'Accept': 'application/json', 
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {self.api_key}' if self.api_key else ''
+            'Authorization': f'Api-Key {self.api_key}' if self.api_key else ''
         }
 
     async def get_file_url(self,
@@ -39,7 +39,8 @@ class CobaltAPI:
         quality: Literal['max', '4320', '2160', '1440', '1080', '720', '480', '360', '240', '144'] = '1080',    
         download_mode: Literal['auto', 'audio', 'mute'] = 'auto',
         filename_style: Literal['classic', 'pretty', 'basic', 'nerdy'] = 'pretty',
-        audio_format: Literal['best', 'mp3', 'ogg', 'wav', 'opus'] = 'mp3'
+        audio_format: Literal['best', 'mp3', 'ogg', 'wav', 'opus'] = 'mp3',
+        youtube_video_codec: Literal['vp9', 'h264'] = None
     ) -> File:
         async with ClientSession(headers=self.headers) as cs:
             try:
@@ -65,7 +66,8 @@ class CobaltAPI:
                         'videoQuality': quality,
                         'filenameStyle': filename_style,
                         'downloadMode': download_mode,
-                        'audioFormat': audio_format
+                        'audioFormat': audio_format,
+                        'youtubeVideoCodec': ('vp9' if int(quality) > 1080 else 'h264' if youtube_video_codec is None else youtube_video_codec)
                     }
                 ) as resp:
                     json = await resp.json()
@@ -95,6 +97,7 @@ class CobaltAPI:
         download_mode: Literal['auto', 'audio', 'mute'] = 'auto',
         filename_style: Literal['classic', 'pretty', 'basic', 'nerdy'] = 'pretty',
         audio_format: Literal['best', 'mp3', 'ogg', 'wav', 'opus'] = 'mp3',
+        youtube_video_codec: Literal['vp9', 'h264'] = None,
         playlist: bool = False
     ) -> str:
         if playlist:
@@ -102,14 +105,23 @@ class CobaltAPI:
             playlist = Playlist(url)
             for url in playlist:
                 print(url)
-                await self.download(url, quality=quality, filename=filename, path_folder=path_folder, download_mode=download_mode, filename_style=filename_style, audio_format=audio_format)
+                await self.download(url,
+                    quality=quality,
+                    filename=filename,
+                    path_folder=path_folder,
+                    download_mode=download_mode,
+                    filename_style=filename_style,
+                    audio_format=audio_format,
+                    youtube_video_codec=youtube_video_codec
+                    )
             return
         file = await self.get_file_url(
             url,
             quality=quality,
             download_mode=download_mode,
             filename_style=filename_style,
-            audio_format=audio_format
+            audio_format=audio_format,
+            youtube_video_codec=youtube_video_codec
         )
         if filename is None:
             filename = file.filename
