@@ -39,15 +39,15 @@ class CobaltAPI:
         quality: Literal['max', '4320', '2160', '1440', '1080', '720', '480', '360', '240', '144'] = '1080',    
         download_mode: Literal['auto', 'audio', 'mute'] = 'auto',
         filename_style: Literal['classic', 'pretty', 'basic', 'nerdy'] = 'pretty',
-        audio_format: Literal['best', 'mp3', 'ogg', 'wav', 'opus'] = 'mp3',
+        audio_format: Literal['best', 'mp3', 'ogg', 'wav', 'opus'] = None,
         youtube_video_codec: Literal['vp9', 'h264'] = None
     ) -> File:
         async with ClientSession(headers=self.headers) as cs:
             try:
-                if quality not in ['max', '4320', '2160', '1440', '1080', '720', '480', '360', '240', '144']:
+                if quality not in ['max', '3840', '2160', '1440', '1080', '720', '480', '360', '240', '144']:
                     try:
                         quality = {
-                            '8k': '4320',
+                            '8k': '3840',
                             '4k': '2160',
                             '2k': '1440',
                             '1080p': '1080',
@@ -59,16 +59,18 @@ class CobaltAPI:
                         }[quality]
                     except:
                         quality = '1080'
+                json = {
+                    'url': url.replace("'", "").replace('"', ''),
+                    'videoQuality': quality,
+                    'youtubeVideoCodec': youtube_video_codec if youtube_video_codec else 'h264',
+                    'filenameStyle': filename_style,
+                }
+                if audio_format:
+                    json['audioFormat'] = audio_format
+                print(json)
                 async with cs.post(
                     self.api_instance,
-                    json={
-                        'url': url.replace("'", "").replace('"', ''),
-                        'videoQuality': quality,
-                        'filenameStyle': filename_style,
-                        'downloadMode': download_mode,
-                        'audioFormat': audio_format,
-                        'youtubeVideoCodec': ('vp9' if int(quality) > 1080 else 'h264' if youtube_video_codec is None else youtube_video_codec)
-                    }
+                    json=json
                 ) as resp:
                     json = await resp.json()
                     if 'error' in json:
@@ -96,7 +98,7 @@ class CobaltAPI:
         path_folder: str = None,
         download_mode: Literal['auto', 'audio', 'mute'] = 'auto',
         filename_style: Literal['classic', 'pretty', 'basic', 'nerdy'] = 'pretty',
-        audio_format: Literal['best', 'mp3', 'ogg', 'wav', 'opus'] = 'mp3',
+        audio_format: Literal['best', 'mp3', 'ogg', 'wav', 'opus'] = None,
         youtube_video_codec: Literal['vp9', 'h264'] = None,
         playlist: bool = False
     ) -> str:
