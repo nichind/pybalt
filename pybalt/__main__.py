@@ -3,7 +3,7 @@ from asyncio import run
 from .cobalt import CobaltAPI
 
 
-async def main():
+async def _():
     parser = argparse.ArgumentParser()
     parser.add_argument('-url', '-u', type=str, help='URL to download', required=False)
     parser.add_argument('-list', '-l', type=str, help='Path to file with list of URLs', required=False)
@@ -38,6 +38,11 @@ async def main():
         )
     print('Everything is done! Have a nice day ^w^', 'Consider leaving a star on GitHub: https://github.com/nichind/pybalt', sep='\n')
     
+    
+def main():
+    run(_())
+
 
 if __name__ == "__main__":
-    run(main())
+    run()
+    
