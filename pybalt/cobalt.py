@@ -1,28 +1,29 @@
 from aiohttp import ClientSession, client_exceptions
 from aiofiles import open as aopen
 from .exceptions import *
-import os
+from os import path, mkdir
 from os.path import expanduser
 from time import time
 from typing import Literal
 
 
 class File:
-    def __init__(self, cobalt = None, status: str = None, url: str = None, filename: str = None) -> None:
+    def __init__(self, cobalt = None, status: str = None, url: str = None, filename: str = None, tunnel: str = None) -> None:
         self.cobalt = cobalt
         self.status = status
         self.url = url
+        self.tunnel = tunnel
         self.filename = filename
         self.extension = self.filename.split('.')[-1] if self.filename else None
         self.downloaded = False
         self.path = None
     
     async def download(self, path_folder: str = None) -> str:
-        self.path = await self.cobalt.download(self.url, self.filename, path_folder)
+        self.path = await self.cobalt.download(self.url, self.filename, path_folder, file=self)
         return self.path
     
     def __repr__(self):
-        return f'<File " + {self.path}' if self.path else f"{self.filename}" + ">"
+        return '<File ' + (self.path if self.path else f'"{self.filename}"') + '>'
 
 
 class CobaltAPI:
@@ -66,7 +67,7 @@ class CobaltAPI:
                     except:
                         quality = '1080'
                 json = {
-                    'url': url.replace("'", "").replace('"', ''),
+                    'url': url.replace("'", "").replace('"', '').replace('\\', ''),
                     'videoQuality': quality,
                     'youtubeVideoCodec': youtube_video_codec if youtube_video_codec else 'h264',
                     'filenameStyle': filename_style,
@@ -91,7 +92,8 @@ class CobaltAPI:
                     return File(
                         cobalt=self,
                         status=json['status'],
-                        url=json['url'],
+                        url=url.replace("'", "").replace('"', '').replace('\\', ''),
+                        tunnel=json['url'],
                         filename=json['filename']
                     )
             except client_exceptions.ClientConnectorError:
@@ -106,7 +108,8 @@ class CobaltAPI:
         filename_style: Literal['classic', 'pretty', 'basic', 'nerdy'] = 'pretty',
         audio_format: Literal['best', 'mp3', 'ogg', 'wav', 'opus'] = None,
         youtube_video_codec: Literal['vp9', 'h264'] = None,
-        playlist: bool = False
+        playlist: bool = False,
+        file: File = None,
     ) -> str:
         """
         Downloads file from url
@@ -140,41 +143,63 @@ class CobaltAPI:
                     youtube_video_codec=youtube_video_codec
                     )
             return
-        file = await self.get(
-            url,
-            quality=quality,
-            download_mode=download_mode,
-            filename_style=filename_style,
-            audio_format=audio_format,
-            youtube_video_codec=youtube_video_codec
-        )
+        if file is None:
+            file = await self.get(
+                url,
+                quality=quality,
+                download_mode=download_mode,
+                filename_style=filename_style,
+                audio_format=audio_format,
+                youtube_video_codec=youtube_video_codec
+            )
         if filename is None:
             filename = file.filename
         if path_folder and path_folder[-1] != '/':
             path_folder += '/'
         if path_folder is None:
-            path_folder = os.path.join(expanduser('~'), 'Downloads')
-        if not os.path.exists(path_folder):
-            os.mkdir(path_folder)
-        async with ClientSession(headers=self.headers) as cs:
-            async with aopen(os.path.join(path_folder, filename), "wb") as f: 
+            path_folder = path.join(expanduser('~'), 'Downloads')
+        if not path.exists(path_folder):
+            mkdir(path_folder)
+        async with ClientSession(headers=self.headers) as session:
+            async with aopen(path.join(path_folder, filename), "wb") as f:
                 try:
+                    progress_chars = ['⢎⡰', '⢎⡡', '⢎⡑', '⢎⠱', '⠎⡱', '⢊⡱', '⢌⡱', '⢆⡱']
+                    progress_index = 0
                     total_size = 0
                     start_time = time()
-                    async with cs.get(file.url) as response:
+                    last_update = 0
+                    downloaded_since_last = 0
+                    max_print_length = 0
+                    async with session.get(file.tunnel) as response:
                         while True:
-                            chunk = await response.content.read(1024 * 1024 * 8)
+                            chunk = await response.content.read(1024 * 1024)
                             if not chunk:
                                 break
                             await f.write(chunk)
                             total_size += len(chunk)
-                            current_time = time()
-                            print(f'\r{filename}: Downloading to {path_folder} [{round(total_size / 1024 / 1024, 2)}Mb | {round(total_size / 1024 / (current_time - start_time), 2)}Kb/s]', end='')
-                    result_path = os.path.join(path_folder, filename)
-                    print(f'\rDownloaded ({round(total_size / 1024 / 1024, 2)}Mb), saved to {result_path}' + ' '*(len(filename) // 2))
+                            downloaded_since_last += len(chunk)
+                            if time() - last_update > 0.2:
+                                progress_index += 1
+                                if progress_index > len(progress_chars) - 1:
+                                    progress_index = 0
+                                speed = downloaded_since_last / (time() - last_update)
+                                speed_display = f'{round(speed / 1024 / 1024, 2)}Mb/s' if speed >= 2 * 1024 * 1024 else f'{round(speed / 1024, 2)}Kb/s'
+                                downloaded_since_last = 0
+                                last_update = time()
+                                print_line = f'{filename}: Downloading to {path_folder}'
+                                info = f'[{round(total_size / 1024 / 1024, 2)}Mb \u2015 {speed_display}] {progress_chars[progress_index]}'
+                                if max_print_length < len(print_line + ' ' + info):
+                                    max_print_length = len(print_line + " " + info)
+                                print('\r' + print_line, " " * (max_print_length - len(print_line + ' ' + info)), info, end='')
+                    result_path = path.join(path_folder, filename)
+                    print_line = f'Downloaded to {result_path}'
+                    info = f'[{round(total_size / 1024 / 1024, 2)}Mb]  \u2713'
+                    print('\r', print_line + " " * (max_print_length - len(print_line + info)), info)
                 except client_exceptions.ClientConnectorError:
                     raise BadInstance(f'Cannot reach instance {self.api_instance}')
              
                 
 Cobalt = CobaltAPI
 cobalt = CobaltAPI
+Pybalt = CobaltAPI
+pybalt = CobaltAPI
