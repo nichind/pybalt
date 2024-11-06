@@ -13,7 +13,7 @@
 
   <div align="center" style="display: flex; flex-flow: column wrap;">
   <h3>CLI Preview</h3>
-  <img src='https://i.imgur.com/GOz5Nl7.gif'>
+  <img src='./assets/cli-preview.gif'>
 
   </div>
   
