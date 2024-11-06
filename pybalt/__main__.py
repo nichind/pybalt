@@ -6,6 +6,7 @@ from .cobalt import CobaltAPI
 
 async def _():
     parser = argparse.ArgumentParser()
+    parser.add_argument('url_arg', nargs='?', type=str, help='URL to download')
     parser.add_argument('-url', '-u', type=str, help='URL to download', required=False)
     parser.add_argument('-list', '-l', type=str, help='Path to file with list of URLs', required=False)
     parser.add_argument('-quality', '-q', '-res', '-r', type=str, help='Video quality to try download', required=False)
@@ -20,6 +21,8 @@ async def _():
     args = parser.parse_args()
     if args.v:
         raise NotImplementedError(f"Not implemented yet")
+    if args.url_arg:
+        args.url = args.url_arg
     urls = ([args.url] if args.url else []) + ([line.strip() for line in open(args.list)] if args.list else [])
     if not urls and not args.playlist:
         print('No URLs provided', "Use -url 'https://...' or -list 'path/to/txt' or -playlist 'https://...'", sep='\n')
