@@ -166,7 +166,6 @@ class CobaltAPI:
             columns, _ = get_terminal_size()
             free_columns = columns - additional_len
             return s[:free_columns - 6] + '...' if len(s) + 3 > free_columns else s
-        
         async with ClientSession(headers=self.headers) as session:
             async with aopen(path.join(path_folder, filename), "wb") as f:
                 try:
@@ -179,7 +178,7 @@ class CobaltAPI:
                     max_print_length, _ = get_terminal_size()
                     max_print_length -= 2
                     async with session.get(file.tunnel) as response:
-                        print(f'\033[96m{filename}:\033[0m ')
+                        print(f'\033[97m{filename}:\033[0m ')
                         result_path = path.join(path_folder, f'"{filename}"')
                         while True:
                             chunk = await response.content.read(1024 * 1024)
@@ -200,16 +199,17 @@ class CobaltAPI:
                                 print_line = shorten(result_path, additional_len=len(info))
                                 max_print_length, _ = get_terminal_size()
                                 max_print_length -= 2
-                                print('\r' + print_line, " " * (max_print_length - len(print_line + ' ' + info)), info, end='')
-                    info = f'[{round(total_size / 1024 / 1024, 2)}Mb] \u2713'
+                                print('\r' + print_line, " " * (max_print_length - len(print_line + ' ' + info)), f'\033[97m{info[:-2]}\033[94m{info[-2:]}\033[0m', end='')
+                    elapsed_time = time() - start_time
+                    info = f'[{round(total_size / 1024 / 1024, 2)}Mb \u2015 {round(elapsed_time, 2)}s] \u2713'
                     print_line = shorten(result_path, additional_len=len(info))
-                    print('\r', print_line + " " * (max_print_length - len(print_line + ' ' + info)), info)
+                    print('\r', print_line + " " * (max_print_length - len(print_line + ' ' + info)), f'\033[97m{info[:-1]}\033[92m{info[-1:]}\033[0m')
                     return path.join(path_folder, filename)
                 except client_exceptions.ClientConnectorError:
                     raise BadInstance(f'Cannot reach instance {self.api_instance}')
-             
                 
 Cobalt = CobaltAPI
 cobalt = CobaltAPI
 Pybalt = CobaltAPI
 pybalt = CobaltAPI
+
