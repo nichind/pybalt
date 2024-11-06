@@ -164,8 +164,8 @@ class CobaltAPI:
             mkdir(path_folder)
         def shorten(s: str, additional_len: int = 0) -> str:
             columns, _ = get_terminal_size()
-            free_columns = columns - additional_len - 4
-            return s[:free_columns - 3] + '...' if len(s) > free_columns else s
+            free_columns = columns - additional_len
+            return s[:free_columns - 6] + '...' if len(s) + 3 > free_columns else s
         
         async with ClientSession(headers=self.headers) as session:
             async with aopen(path.join(path_folder, filename), "wb") as f:
@@ -179,7 +179,7 @@ class CobaltAPI:
                     max_print_length, _ = get_terminal_size()
                     max_print_length -= 2
                     async with session.get(file.tunnel) as response:
-                        print(f' \u2015\u2015\u2015 {filename}: ')
+                        print(f'\033[96m{filename}:\033[0m ')
                         result_path = path.join(path_folder, f'"{filename}"')
                         while True:
                             chunk = await response.content.read(1024 * 1024)
@@ -193,17 +193,17 @@ class CobaltAPI:
                                 if progress_index > len(progress_chars) - 1:
                                     progress_index = 0
                                 speed = downloaded_since_last / (time() - last_update)
-                                speed_display = f'{round(speed / 1024 / 1024, 2)}Mb/s' if speed >= 2 * 1024 * 1024 else f'{round(speed / 1024, 2)}Kb/s'
+                                speed_display = f'{round(speed / 1024 / 1024, 2)}Mb/s' if speed >= 0.92 * 1024 * 1024 else f'{round(speed / 1024, 2)}Kb/s'
                                 downloaded_since_last = 0
                                 last_update = time()
                                 info = f'[{round(total_size / 1024 / 1024, 2)}Mb \u2015 {speed_display}] {progress_chars[progress_index]}'
-                                print_line = f'{shorten(result_path, additional_len=len(info))}'
+                                print_line = shorten(result_path, additional_len=len(info))
                                 max_print_length, _ = get_terminal_size()
                                 max_print_length -= 2
                                 print('\r' + print_line, " " * (max_print_length - len(print_line + ' ' + info)), info, end='')
-                    info = f'[{round(total_size / 1024 / 1024, 2)}Mb]  \u2713'
-                    print_line = f'{shorten(result_path, additional_len=len(info))}'
-                    print('\r', print_line + " " * (max_print_length - len(print_line + info)), info)
+                    info = f'[{round(total_size / 1024 / 1024, 2)}Mb] \u2713'
+                    print_line = shorten(result_path, additional_len=len(info))
+                    print('\r', print_line + " " * (max_print_length - len(print_line + ' ' + info)), info)
                     return path.join(path_folder, filename)
                 except client_exceptions.ClientConnectorError:
                     raise BadInstance(f'Cannot reach instance {self.api_instance}')
