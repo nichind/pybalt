@@ -1,6 +1,9 @@
 from aiohttp import ClientSession, client_exceptions
+from aiofiles import open as aopen
 from .exceptions import *
 import os
+from os.path import expanduser
+from time import time
 from typing import Literal
 
 
@@ -130,17 +133,25 @@ class CobaltAPI:
         if path_folder and path_folder[-1] != '/':
             path_folder += '/'
         if path_folder is None:
-            path_folder = os.getcwd() + '/Downloads/'
+            path_folder = os.path.join(expanduser('~'), 'Downloads')
         if not os.path.exists(path_folder):
             os.mkdir(path_folder)
         async with ClientSession(headers=self.headers) as cs:
-            with open(path_folder + filename, "wb") as f: 
-                print(f'\r{filename}: Downloading to {path_folder}', end='')
+            async with aopen(os.path.join(path_folder, filename), "wb") as f: 
                 try:
+                    total_size = 0
+                    start_time = time()
                     async with cs.get(file.url) as response:
-                        read = await response.read()
-                        f.write(read)
-                    print(f'\r{filename}: Downloaded ({round(read.__sizeof__() / 1024 / 1024, 2)}Mb) to {path_folder}{filename}')
+                        while True:
+                            chunk = await response.content.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            await f.write(chunk)
+                            total_size += len(chunk)
+                            current_time = time()
+                            print(f'\r{filename}: Downloading to {path_folder} [{round(total_size / 1024 / 1024, 2)}Mb | {round(total_size / 1024 / (current_time - start_time), 2)}Kb/s]', end='')
+                    result_path = os.path.join(path_folder, filename)
+                    print(f'\rDownloaded ({round(total_size / 1024 / 1024, 2)}Mb), saved to {result_path}' + ' '*(len(filename) // 2))
                 except client_exceptions.ClientConnectorError:
                     raise BadInstance(f'Cannot reach instance {self.api_instance}')
              
