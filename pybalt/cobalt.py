@@ -35,13 +35,49 @@ class CobaltAPI:
         headers: dict = None
     ) -> None:
         self.api_instance = f'''{'https://' if "http" not in api_instance else ""}{api_instance}''' if api_instance else 'https://dwnld.nichind.dev'
-        self.api_key = api_key
+        self.api_key = api_key if api_key else ""
+        if self.api_instance == 'https://dwnld.nichind.dev' and not self.api_key:
+            self.api_key = "b05007aa-bb63-4267-a66e-78f8e10bf9bf"
         self.headers = headers
         self.headers = {
             'Accept': 'application/json', 
             'Content-Type': 'application/json',
-            'Authorization': f'Api-Key {self.api_key}' if self.api_key else ''
+            'Authorization': f'Api-Key {self.api_key}' if self.api_key else '',
+            'User-Agent': 'pybalt/python'
         }
+        self.skipped_instances = []
+
+    async def get_instance(self):
+        headers = self.headers
+        headers['User-Agent'] = 'https://github.com/nichind/pybalt'
+        async with ClientSession(headers=headers) as cs:
+            async with cs.get('https://instances.cobalt.best/api/instances.json') as resp:
+                instances: list = await resp.json()
+                good_instances = []
+                for instance in instances:
+                    dead_services = 0
+                    if int(instance['version'].split('.')[0]) < 10 or instance['trust'] != 1:
+                        continue
+                    for service, status in instance['services'].items():
+                        if status != True:
+                            if service == 'youtube':
+                                continue
+                            dead_services += 1
+                    if dead_services > 7:
+                        continue
+                    good_instances.append(instance)
+                while True:
+                    good_instances.sort(key=lambda instance: instance['score'], reverse=True)
+                    try:
+                        async with cs.get(good_instances[0]['protocol'] + '://' + good_instances[0]['api']) as resp:
+                            json = await resp.json()
+                            if json['cobalt']['url'] in self.skipped_instances:
+                                raise Exception()
+                            self.api_instance = json['cobalt']['url']
+                            break
+                    except:
+                        good_instances.pop(0)
+        return self.api_instance
 
     async def get(self,
         url: str,
@@ -52,6 +88,8 @@ class CobaltAPI:
         youtube_video_codec: Literal['vp9', 'h264'] = None
     ) -> File:
         async with ClientSession(headers=self.headers) as cs:
+            if not self.api_instance:
+                await self.get_instance()
             try:
                 if quality not in ['max', '3840', '2160', '1440', '1080', '720', '480', '360', '240', '144']:
                     try:
@@ -77,6 +115,7 @@ class CobaltAPI:
                 if audio_format:
                     json['audioFormat'] = audio_format
                 # print(json)
+                print(self.api_instance)
                 async with cs.post(
                     self.api_instance,
                     json=json
@@ -90,6 +129,17 @@ class CobaltAPI:
                                 raise ContentError(f'cannot get content of {url} - {json["error"]["code"]}') 
                             case 'invalid_body':
                                 raise InvalidBody(f'Request body is invalid - {json["error"]["code"]}')
+                            case 'auth':
+                                if json['error']['code'].split('.')[-1] == 'missing':
+                                    self.skipped_instances.append(self.api_instance)
+                                    await self.get_instance()
+                                    return await self.get(url, quality, download_mode, filename_style, audio_format, youtube_video_codec)
+                                print(self.headers)
+                                raise AuthError(f'Authentication failed - {json["error"]["code"]}')
+                            case 'youtube':
+                                self.skipped_instances.append(self.api_instance)
+                                await self.get_instance()
+                                return await self.get(url, quality, download_mode, filename_style, audio_format, youtube_video_codec)
                         raise UnrecognizedError(f'{json["error"]["code"]} - {json["error"]}')
                     return File(
                         cobalt=self,

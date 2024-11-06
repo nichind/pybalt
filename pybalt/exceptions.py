@@ -16,3 +16,7 @@ class ContentError(Exception):
 
 class InvalidBody(Exception):
     pass
+
+
+class AuthError(Exception):
+    pass
