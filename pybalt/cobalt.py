@@ -1,6 +1,8 @@
 from aiohttp import ClientSession, client_exceptions
 from aiofiles import open as aopen
 from .exceptions import *
+from shutil import get_terminal_size
+from re import sub
 from os import path, mkdir
 from os.path import expanduser
 from time import time
@@ -160,6 +162,11 @@ class CobaltAPI:
             path_folder = path.join(expanduser('~'), 'Downloads')
         if not path.exists(path_folder):
             mkdir(path_folder)
+        def shorten(s: str, additional_len: int = 0) -> str:
+            columns, _ = get_terminal_size()
+            free_columns = columns - additional_len - 4
+            return s[:free_columns - 3] + '...' if len(s) > free_columns else s
+        
         async with ClientSession(headers=self.headers) as session:
             async with aopen(path.join(path_folder, filename), "wb") as f:
                 try:
@@ -169,8 +176,11 @@ class CobaltAPI:
                     start_time = time()
                     last_update = 0
                     downloaded_since_last = 0
-                    max_print_length = 0
+                    max_print_length, _ = get_terminal_size()
+                    max_print_length -= 2
                     async with session.get(file.tunnel) as response:
+                        print(f' \u2015\u2015\u2015 {filename}: ')
+                        result_path = path.join(path_folder, f'"{filename}"')
                         while True:
                             chunk = await response.content.read(1024 * 1024)
                             if not chunk:
@@ -186,15 +196,15 @@ class CobaltAPI:
                                 speed_display = f'{round(speed / 1024 / 1024, 2)}Mb/s' if speed >= 2 * 1024 * 1024 else f'{round(speed / 1024, 2)}Kb/s'
                                 downloaded_since_last = 0
                                 last_update = time()
-                                print_line = f'{filename}: Downloading to {path_folder}'
                                 info = f'[{round(total_size / 1024 / 1024, 2)}Mb \u2015 {speed_display}] {progress_chars[progress_index]}'
-                                if max_print_length < len(print_line + ' ' + info):
-                                    max_print_length = len(print_line + " " + info)
+                                print_line = f'{shorten(result_path, additional_len=len(info))}'
+                                max_print_length, _ = get_terminal_size()
+                                max_print_length -= 2
                                 print('\r' + print_line, " " * (max_print_length - len(print_line + ' ' + info)), info, end='')
-                    result_path = path.join(path_folder, filename)
-                    print_line = f'Downloaded to {result_path}'
                     info = f'[{round(total_size / 1024 / 1024, 2)}Mb]  \u2713'
+                    print_line = f'{shorten(result_path, additional_len=len(info))}'
                     print('\r', print_line + " " * (max_print_length - len(print_line + info)), info)
+                    return path.join(path_folder, filename)
                 except client_exceptions.ClientConnectorError:
                     raise BadInstance(f'Cannot reach instance {self.api_instance}')
              
