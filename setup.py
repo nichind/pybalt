@@ -30,6 +30,7 @@ setup(
     entry_points={
         'console_scripts': [
             'pybalt=pybalt.__main__:main',
+            'cobalt=pybalt.__main__:main',
         ],
     },
 )
