@@ -1,33 +1,111 @@
 <div align="center" style="display: flex; flex-flow: column wrap;">
-  <img src='https://i.imgur.com/IJQgkSJ.png' style='width: 128px'></img>
-  <h3>Pybalt</h3>
-  <h5>Python module / CLI to download media using cobalt-api instance</h5>
+  <img src='./assets/logo.png' style='border-radius: 8px; width: 300px'></img>
+  <h3>pybalt</h3>
+  <h5>Python module & CLI to download media using cobalt processing instance(s)</h5>
   <br>
-  
+
+
   [![Get on pypi](https://img.shields.io/pypi/v/pybalt.svg)](https://pypi.org/project/pybalt/)
   [![Last commit](https://img.shields.io/github/last-commit/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
   [![Pip module installs total downloads](https://img.shields.io/pypi/dm/pybalt.svg)](https://pypi.org/project/pybalt/)
   [![GitHub stars](https://img.shields.io/github/stars/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
-  
-  <br>
 
+  
   <div align="center" style="display: flex; flex-flow: column wrap;">
   <h3>CLI Preview</h3>
-  <img src='./assets/cli-preview.gif'>
+  <img src='./assets/cli-preview.gif' style='border-radius: 8px'></img>
 
   </div>
   
 </div>
-<br>
+<br><br>
 <h1>Installation</h1>
-<h4>Download using PIP</h4>
+<h4>Install using PIP</h4>
 
-```
-python -m pip install pybalt
+```shell
+pip install pybalt
 ```
 
+This should create aliases `pybalt` and `cobalt` in your shell.
+
+If for some reason it didn't work, try using it with python:
+
+```shell
+python -m cobalt
+```
+<br><br>
 <h1>Usage & Examples</h1>
-<h3>Inside python file</h3>
+
+<h2>As a CLI</h2>
+<details open>
+<summary></summary>
+
+Every command here uses the `cobalt` alias, you can also use `pybalt` or `python -m pybalt` as well.
+
+**Important!** By default pybalt uses `https://dwnld.nichind.dev` as the processing instance. I recommend hosting your own instance or ask someone to give you `api key` for their instance.
+
+By default all downloads are saved in a user downloads folder `~/Downloads` or the one specified by the `--folder` flag.
+
+Get list of all available commands by running:
+
+```shell
+cobalt -h
+```
+
+<br><br>
+<h3>Download video from URL</h3>
+
+```shell
+cobalt -u 'https://youtube.com/watch?v=8ZP5eqm4JqM'
+```
+
+you can also provide url as positional argument:
+
+```shell
+cobalt 'https://youtube.com/watch?v=8ZP5eqm4JqM'
+```
+
+<br><br>
+<h3>Download Youtube playlist</h3>
+
+```shell
+cobalt -pl 'https://youtube.com/playlist?list=PL_93TBqf4ymR9GsuI9W4kQ-G3WM7d2Tqj'
+```
+
+<br><br>
+<h3>Download from text file</h3>
+
+Create a text file with URLs on each line:
+
+```txt
+https://youtube.com/watch?v=8ZP...
+.....
+....
+...
+```
+
+then run:
+
+```shell
+cobalt -l 'path/to/file.txt'
+```
+
+<br><br>
+<h3>More examples</h3>
+
+Download all videos from a YouTube playlist in `720p` to folder `/Music/`, filename style `classic`, use instance `https://dwnld.nichind.dev` with `api key` authorization
+
+```shell
+cobalt -pl 'https://youtube.com/playlist?list=PL_93TBqf4ymR9GsuI9W4kQ-G3WM7d2Tqj' -q 720 -f './Music/' -fs 'classic' -i 'https://dwnld.nichind.dev' -k 'YOUR_API_KEY'
+```
+
+</details>
+
+<h2>As a module</h2>
+
+<details open>
+
+<h2>Download video from URL</h2>
 
 ```python
 from pybalt import Cobalt
@@ -35,41 +113,37 @@ from asyncio import run
 
 
 async def main():
-    cobalt = Cobalt(api_key='...', api_instance='https://...')
-    print(await cobalt.download("https://www.youtube.com/watch?v=9bZkp7q19f0", quality="1080", path_folder='cute-videos'))
+    cobalt = Cobalt()
+    path = await cobalt.download('https://youtube.com/watch?v=8ZP5eqm4JqM')
+    print('Downloaded: ', path)  # Downloaded: /Users/%USER%/Downloads/8ZP5eqm4JqM.mp4
 
 
-if __name__ == "__main__":
-    run(main())
-```
-<h3>With terminal or cmd</h3>
-
-```bash
-pybalt -url 'https://music.youtube.com/watch?v=cxAmzz_tjzc' -folder music -fs pretty
-```
-<h4>Cli Options:</h4>
-
-```bash
--h, --help            show this help message and exit
--url URL, -u URL      URL to download
--list LIST, -l LIST   Path to file with list of URLs
--quality QUALITY, -q QUALITY, -res QUALITY, -r QUALITY
-                      Video quality to try download
--folder FOLDER, -f FOLDER
-                      Path to folder
--instance INSTANCE, -i INSTANCE
-                      Cobalt API instance
--key KEY, -k KEY      API key
--playlist PLAYLIST, -pl PLAYLIST
-                      Playlist URL (currently YouTube only)
--filenameStyle FILENAMESTYLE, -fs FILENAMESTYLE
-                      Filename style
--audioFormat AUDIOFORMAT, -af AUDIOFORMAT
-                      Audio format
+run(main())
 ```
 
-Lets say we want to download YouTube playlist in 4k using my instance with api_key, save all videos to folder 'cat-videos', command would look like that:
+You can pass arguments inside Cobalt object:
 
-```bash
-pybalt -pl 'playlistUrl' -folder cat-videos -q 4k -i https://dwnld.nichind.dev -k API_KEY
-```
+```python
+from pybalt import Cobalt
+from asyncio import run
+
+
+async def main():
+    cobalt = Cobalt(api_instance='YOUR_INSTANCE_URL', api_key='YOUR_API_KEY', headers={...})
+    path = await cobalt.download(url='https://youtube.com/watch?v=8ZP5eqm4JqM', quality='1080')
+    print('Downloaded: ', path)  # Downloaded: /Users/%USER%/Downloads/8ZP5eqm4JqM.mp4
+
+
+run(main())
+``` 
+
+</details>
+
+
+<h1>Contributing</h1>
+
+If you have any questions or suggestions, please [open an issue](https://github.com/nichind/pybalt/issues) or [create a pull request](https://github.com/nichind/pybalt/pulls).
+
+<h3>Contributors</h3>
+
+<img src="https://contrib.rocks/image?repo=nichind/pybalt" alt="Contributors" style="max-width: 100%;"/>
