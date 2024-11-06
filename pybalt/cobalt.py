@@ -14,12 +14,15 @@ class File:
         self.url = url
         self.filename = filename
         self.extension = self.filename.split('.')[-1] if self.filename else None
+        self.downloaded = False
+        self.path = None
     
     async def download(self, path_folder: str = None) -> str:
-        return await self.cobalt.download(self.url, self.filename, path_folder)
+        self.path = await self.cobalt.download(self.url, self.filename, path_folder)
+        return self.path
     
     def __repr__(self):
-        return f'<File {self.filename}>'
+        return f'<File " + {self.path}' if self.path else f"{self.filename}" + ">"
 
 
 class CobaltAPI:
@@ -37,7 +40,7 @@ class CobaltAPI:
             'Authorization': f'Api-Key {self.api_key}' if self.api_key else ''
         }
 
-    async def get_file_url(self,
+    async def get(self,
         url: str,
         quality: Literal['max', '4320', '2160', '1440', '1080', '720', '480', '360', '240', '144'] = '1080',    
         download_mode: Literal['auto', 'audio', 'mute'] = 'auto',
@@ -70,7 +73,7 @@ class CobaltAPI:
                 }
                 if audio_format:
                     json['audioFormat'] = audio_format
-                print(json)
+                # print(json)
                 async with cs.post(
                     self.api_instance,
                     json=json
@@ -105,6 +108,23 @@ class CobaltAPI:
         youtube_video_codec: Literal['vp9', 'h264'] = None,
         playlist: bool = False
     ) -> str:
+        """
+        Downloads file from url
+        
+        Parameters:
+        url (str): URL to download
+        quality (str): Video quality to try download
+        filename (str): Filename to save as
+        path_folder (str): Folder to save in
+        download_mode (Literal['auto', 'audio', 'mute']): Download mode
+        filename_style (Literal['classic', 'pretty', 'basic', 'nerdy']): Filename style
+        audio_format (Literal['best', 'mp3', 'ogg', 'wav', 'opus']): Audio format
+        youtube_video_codec (Literal['vp9', 'h264']): Youtube video codec
+        playlist (bool): Whether the url is a playlist
+        
+        Returns:
+        str: Path to saved file
+        """
         if playlist:
             from pytube import Playlist
             playlist = Playlist(url)
@@ -120,7 +140,7 @@ class CobaltAPI:
                     youtube_video_codec=youtube_video_codec
                     )
             return
-        file = await self.get_file_url(
+        file = await self.get(
             url,
             quality=quality,
             download_mode=download_mode,
@@ -143,7 +163,7 @@ class CobaltAPI:
                     start_time = time()
                     async with cs.get(file.url) as response:
                         while True:
-                            chunk = await response.content.read(1024 * 1024)
+                            chunk = await response.content.read(1024 * 1024 * 8)
                             if not chunk:
                                 break
                             await f.write(chunk)
@@ -157,3 +177,4 @@ class CobaltAPI:
              
                 
 Cobalt = CobaltAPI
+cobalt = CobaltAPI

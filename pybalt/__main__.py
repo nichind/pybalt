@@ -3,6 +3,7 @@ from asyncio import run
 from .cobalt import CobaltAPI
 
 
+
 async def _():
     parser = argparse.ArgumentParser()
     parser.add_argument('-url', '-u', type=str, help='URL to download', required=False)
@@ -15,10 +16,13 @@ async def _():
     parser.add_argument('-filenameStyle', '-fs', type=str, help='Filename style', required=False)
     parser.add_argument('-audioFormat', '-af', type=str, help='Audio format', required=False)
     parser.add_argument('-youtubeVideoCodec', '-yvc', help='Youtube video codec', required=False)
+    parser.add_argument('--v', '--version', help='Display current pybalt version', action='store_true')
     args = parser.parse_args()
+    if args.v:
+        raise NotImplementedError(f"Not implemented yet")
     urls = ([args.url] if args.url else []) + ([line.strip() for line in open(args.list)] if args.list else [])
     if not urls and not args.playlist:
-        print('No URLs provided', "Use -url 'https://...' or -list 'path/to/file'", sep='\n')
+        # print('No URLs provided', "Use -url 'https://...' or -list 'path/to/file'", sep='\n')
         return
     api = CobaltAPI(api_instance=args.instance, api_key=args.key)
     if args.playlist:
@@ -39,7 +43,7 @@ async def _():
             audio_format=args.audioFormat if args.audioFormat else 'mp3',
             youtube_video_codec=args.youtubeVideoCodec if args.youtubeVideoCodec else None
         )
-    print('Everything is done! Have a nice day ^w^', 'Consider leaving a star on GitHub: https://github.com/nichind/pybalt', sep='\n')
+    # print('Everything is done! Have a nice day ^w^', 'Consider leaving a star on GitHub: https://github.com/nichind/pybalt', sep='\n')
     
     
 def main():
