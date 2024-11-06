@@ -115,7 +115,6 @@ class CobaltAPI:
                 if audio_format:
                     json['audioFormat'] = audio_format
                 # print(json)
-                print(self.api_instance)
                 async with cs.post(
                     self.api_instance,
                     json=json

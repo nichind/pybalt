@@ -2,8 +2,6 @@
   <img src='https://i.imgur.com/IJQgkSJ.png' style='width: 128px'></img>
   <h3>Pybalt</h3>
   <h5>Python module / CLI to download media using cobalt-api instance</h5>
-  <h5>ATM instance default to my own instance, please dont abuse it ^^</h5>
-
   <br>
   
   [![Get on pypi](https://img.shields.io/pypi/v/pybalt.svg)](https://pypi.org/project/pybalt/)
@@ -11,6 +9,12 @@
   [![Pip module installs total downloads](https://img.shields.io/pypi/dm/pybalt.svg)](https://pypi.org/project/pybalt/)
   [![GitHub stars](https://img.shields.io/github/stars/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
   
+  <br>
+
+  <div align="center" style="display: flex; flex-flow: column wrap;">
+  <h3>CLI Preview</h3>
+  <img src='https://i.imgur.com/GOz5Nl7.gif'>
+
   </div>
   
 </div>
