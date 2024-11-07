@@ -3,14 +3,29 @@ from aiofiles import open as aopen
 from .exceptions import *
 from shutil import get_terminal_size
 from re import sub
-from os import path, mkdir
+from os import path, mkdir, getenv
 from os.path import expanduser
 from time import time
 from typing import Literal
+from dotenv import load_dotenv
 
 
 class File:
     def __init__(self, cobalt = None, status: str = None, url: str = None, filename: str = None, tunnel: str = None) -> None:
+        """
+        Creates a new File object.
+
+        Parameters:
+        - cobalt (CobaltAPI): The CobaltAPI instance associated with this File.
+        - status (str): The status of the file.
+        - url (str): The URL of the file.
+        - filename (str): The filename of the file.
+        - tunnel (str): The tunnel URL of the file.
+
+        Fields:
+        - downloaded (bool): Whether the file has been downloaded.
+        - path (str): The path where the file is saved.
+        """
         self.cobalt = cobalt
         self.status = status
         self.url = url
@@ -21,11 +36,21 @@ class File:
         self.path = None
     
     async def download(self, path_folder: str = None) -> str:
+        """
+        Downloads the file and saves it to the specified folder.
+
+        Parameters:
+        - path_folder (str, optional): The folder path where the file should be saved. Defaults to the user's downloads folder.
+
+        Returns:
+        - str: The path to the downloaded file.
+        """
         self.path = await self.cobalt.download(self.url, self.filename, path_folder, file=self)
+        self.downloaded = True
         return self.path
     
     def __repr__(self):
-        return '<File ' + (self.path if self.path else f'"{self.filename}"') + '>'
+        return '<Media ' + (self.path if self.path else f'"{self.filename}"') + '>'
 
 
 class CobaltAPI:
@@ -34,20 +59,50 @@ class CobaltAPI:
         api_key: str = None,
         headers: dict = None
     ) -> None:
+        """
+        Creates a new CobaltAPI object.
+
+        Parameters:
+        - api_instance (str, optional): The URL of the Cobalt API instance to use. Defaults to https://dwnld.nichind.dev.
+        - api_key (str, optional): The API key to use for the Cobalt API instance. Defaults to "".
+        - headers (dict, optional): The headers to use for requests to the Cobalt API instance. Defaults to a dictionary with Accept, Content-Type, and Authorization headers.
+
+        Environment variables:
+        - COBALT_API_URL: The URL of the Cobalt API instance to use.
+        - COBALT_API_KEY: The API key to use for the Cobalt API instance.
+        - COBALT_USER_AGENT: The User-Agent header to use for requests to the Cobalt API instance. Defaults to "pybalt/python".
+        """
+        load_dotenv()
+        if api_instance is None:
+            if getenv('COBALT_API_URL'):
+                api_instance = getenv('COBALT_API_URL')
+        if api_key is None:
+            if getenv('COBALT_API_KEY'):
+                api_key = getenv('COBALT_API_KEY')
         self.api_instance = f'''{'https://' if "http" not in api_instance else ""}{api_instance}''' if api_instance else 'https://dwnld.nichind.dev'
         self.api_key = api_key if api_key else ""
         if self.api_instance == 'https://dwnld.nichind.dev' and not self.api_key:
             self.api_key = "b05007aa-bb63-4267-a66e-78f8e10bf9bf"
         self.headers = headers
-        self.headers = {
-            'Accept': 'application/json', 
-            'Content-Type': 'application/json',
-            'Authorization': f'Api-Key {self.api_key}' if self.api_key else '',
-            'User-Agent': 'pybalt/python'
-        }
+        if self.headers is None:
+            self.headers = {
+                'Accept': 'application/json', 
+                'Content-Type': 'application/json',
+                'Authorization': f'Api-Key {self.api_key}' if self.api_key else '',
+            }
+        if 'User-Agent' not in self.headers.keys():
+            self.headers['User-Agent'] = getenv('COBALT_USER_AGENT') if getenv('COBALT_USER_AGENT') else "pybalt/python"
         self.skipped_instances = []
 
     async def get_instance(self):
+        """
+        Finds a good instance of Cobalt API and changes the API instance of this object to it.
+        
+        It first gets a list of all instances, then filters out the ones with low trust or old version.
+        Then it filters out the ones with too many dead services.
+        It then picks the one with highest score and checks if it is already in the list of skipped instances.
+        If it is, it picks the next one.
+        """
         headers = self.headers
         headers['User-Agent'] = 'https://github.com/nichind/pybalt'
         async with ClientSession(headers=headers) as cs:
@@ -81,12 +136,34 @@ class CobaltAPI:
 
     async def get(self,
         url: str,
-        quality: Literal['max', '4320', '2160', '1440', '1080', '720', '480', '360', '240', '144'] = '1080',    
+        quality: Literal['max', '3840', '2160', '1440', '1080', '720', '480', '360', '240', '144'] = '1080',    
         download_mode: Literal['auto', 'audio', 'mute'] = 'auto',
         filename_style: Literal['classic', 'pretty', 'basic', 'nerdy'] = 'pretty',
         audio_format: Literal['best', 'mp3', 'ogg', 'wav', 'opus'] = None,
         youtube_video_codec: Literal['vp9', 'h264'] = None
     ) -> File:
+        """
+        Retrieves a File object for the specified URL with optional quality, mode, and format settings.
+
+        Parameters:
+        - url (str): The URL of the video or media to retrieve.
+        - quality (Literal['max', '3840', '2160', '1440', '1080', '720', '480', '360', '240', '144'], optional): Desired quality of the media. Defaults to '1080'.
+        - download_mode (Literal['auto', 'audio', 'mute'], optional): Mode of download, affecting audio and video handling. Defaults to 'auto'.
+        - filename_style (Literal['classic', 'pretty', 'basic', 'nerdy'], optional): Style of the filename. Defaults to 'pretty'.
+        - audio_format (Literal['best', 'mp3', 'ogg', 'wav', 'opus'], optional): Audio format for the download if applicable.
+        - youtube_video_codec (Literal['vp9', 'h264'], optional): Codec for YouTube video downloads.
+
+        Returns:
+        - File: A File object containing metadata for the download.
+
+        Raises:
+        - LinkError: If the provided URL is invalid.
+        - ContentError: If the content of the URL cannot be retrieved.
+        - InvalidBody: If the request body is invalid.
+        - AuthError: If authentication fails.
+        - UnrecognizedError: If an unrecognized error occurs.
+        - BadInstance: If the Cobalt API instance cannot be reached.
+        """
         async with ClientSession(headers=self.headers) as cs:
             if not self.api_instance:
                 await self.get_instance()
@@ -163,21 +240,25 @@ class CobaltAPI:
         file: File = None,
     ) -> str:
         """
-        Downloads file from url
-        
+        Downloads a file from a specified URL or playlist, saving it to a given path with optional quality, filename, and format settings.
+
         Parameters:
-        url (str): URL to download
-        quality (str): Video quality to try download
-        filename (str): Filename to save as
-        path_folder (str): Folder to save in
-        download_mode (Literal['auto', 'audio', 'mute']): Download mode
-        filename_style (Literal['classic', 'pretty', 'basic', 'nerdy']): Filename style
-        audio_format (Literal['best', 'mp3', 'ogg', 'wav', 'opus']): Audio format
-        youtube_video_codec (Literal['vp9', 'h264']): Youtube video codec
-        playlist (bool): Whether the url is a playlist
-        
+        - url (str, optional): The URL of the video or media to download.
+        - quality (str, optional): The desired quality of the download.
+        - filename (str, optional): The desired name for the downloaded file.
+        - path_folder (str, optional): The folder path where the file should be saved.
+        - download_mode (Literal['auto', 'audio', 'mute'], optional): The mode of download, affecting audio and video handling.
+        - filename_style (Literal['classic', 'pretty', 'basic', 'nerdy'], optional): Style of the filename.
+        - audio_format (Literal['best', 'mp3', 'ogg', 'wav', 'opus'], optional): Audio format for the download if applicable.
+        - youtube_video_codec (Literal['vp9', 'h264'], optional): Codec for YouTube video downloads.
+        - playlist (bool, optional): Whether the URL is a playlist link.
+        - file (File, optional): A pre-existing File object to use for the download.
+
         Returns:
-        str: Path to saved file
+        - str: The path to the downloaded file.
+
+        Raises:
+        - BadInstance: If the specified instance cannot be reached.
         """
         if playlist:
             from pytube import Playlist
@@ -211,10 +292,12 @@ class CobaltAPI:
             path_folder = path.join(expanduser('~'), 'Downloads')
         if not path.exists(path_folder):
             mkdir(path_folder)
+        
         def shorten(s: str, additional_len: int = 0) -> str:
             columns, _ = get_terminal_size()
             free_columns = columns - additional_len
             return s[:free_columns - 6] + '...' if len(s) + 3 > free_columns else s
+        
         async with ClientSession(headers=self.headers) as session:
             async with aopen(path.join(path_folder, filename), "wb") as f:
                 try:
@@ -227,7 +310,7 @@ class CobaltAPI:
                     max_print_length, _ = get_terminal_size()
                     max_print_length -= 2
                     async with session.get(file.tunnel) as response:
-                        print(f'\033[97m{filename}:\033[0m ')
+                        print(f'\033[97m{filename}\033[0m ')
                         result_path = path.join(path_folder, f'"{filename}"')
                         while True:
                             chunk = await response.content.read(1024 * 1024)
@@ -255,10 +338,8 @@ class CobaltAPI:
                     print('\r', print_line + " " * (max_print_length - len(print_line + ' ' + info)), f'\033[97m{info[:-1]}\033[92m{info[-1:]}\033[0m')
                     return path.join(path_folder, filename)
                 except client_exceptions.ClientConnectorError:
-                    raise BadInstance(f'Cannot reach instance {self.api_instance}')
+                    raise BadInstance(f'Cannot reach instance {self.api_instance}. Are you connected to the internet?')
+                
                 
 Cobalt = CobaltAPI
-cobalt = CobaltAPI
 Pybalt = CobaltAPI
-pybalt = CobaltAPI
-

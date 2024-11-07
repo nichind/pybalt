@@ -28,21 +28,35 @@ pip install pybalt
 
 This should create aliases `pybalt` and `cobalt` in your shell.
 
+Try running `cobalt -h` to see the help message.
+
 If for some reason it didn't work, try using it with python:
 
 ```shell
-python -m cobalt
+python -m pybalt
 ```
 <br><br>
 <h1>Usage & Examples</h1>
 
+<h3>Selecting processing instance</h3>
+
+You can set **processing instance url**, **api key** and **user-agent** to enviroment variables, pybalt will use them if none was provided.
+
+
+```
+COBALT_API_URL=YOUR_INSTANCE_URL
+COBALT_API_KEY=YOUR_API_KEY
+COBALT_USER_AGENT=YOUR_USER_AGENT
+```
+
+By default pybalt uses `https://dwnld.nichind.dev` as the processing instance. I recommend hosting your own instance or asking someone to give you `api key` for their instance.
+
+<br>
 <h2>As a CLI</h2>
 <details open>
 <summary></summary>
 
 Every command here uses the `cobalt` alias, you can also use `pybalt` or `python -m pybalt` as well.
-
-**Important!** By default pybalt uses `https://dwnld.nichind.dev` as the processing instance. I recommend hosting your own instance or ask someone to give you `api key` for their instance.
 
 By default all downloads are saved in a user downloads folder `~/Downloads` or the one specified by the `--folder` flag.
 
@@ -52,7 +66,7 @@ Get list of all available commands by running:
 cobalt -h
 ```
 
-<br><br>
+<br>
 <h3>Download video from URL</h3>
 
 ```shell
@@ -65,14 +79,14 @@ you can also provide url as positional argument:
 cobalt 'https://youtube.com/watch?v=8ZP5eqm4JqM'
 ```
 
-<br><br>
+<br>
 <h3>Download Youtube playlist</h3>
 
 ```shell
 cobalt -pl 'https://youtube.com/playlist?list=PL_93TBqf4ymR9GsuI9W4kQ-G3WM7d2Tqj'
 ```
 
-<br><br>
+<br>
 <h3>Download from text file</h3>
 
 Create a text file with URLs on each line:
@@ -90,7 +104,7 @@ then run:
 cobalt -l 'path/to/file.txt'
 ```
 
-<br><br>
+<br>
 <h3>More examples</h3>
 
 Download all videos from a YouTube playlist in `720p` to folder `/Music/`, filename style `classic`, use instance `https://dwnld.nichind.dev` with `api key` authorization
@@ -100,12 +114,12 @@ cobalt -pl 'https://youtube.com/playlist?list=PL_93TBqf4ymR9GsuI9W4kQ-G3WM7d2Tqj
 ```
 
 </details>
-
+<br><br>
 <h2>As a module</h2>
 
 <details open>
 
-<h2>Download video from URL</h2>
+<h3>Download video from URL</h3>
 
 ```python
 from pybalt import Cobalt
@@ -139,7 +153,7 @@ run(main())
 
 </details>
 
-
+<br><br>
 <h1>Contributing</h1>
 
 If you have any questions or suggestions, please [open an issue](https://github.com/nichind/pybalt/issues) or [create a pull request](https://github.com/nichind/pybalt/pulls).
