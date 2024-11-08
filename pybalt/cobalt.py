@@ -390,7 +390,7 @@ class Cobalt:
                     last_update = 0
                     downloaded_since_last = 0
                     async with session.get(file.tunnel) as response:
-                        print(f"\033[97m{filename}\033[0m ")
+                        print(f"\033[97m{filename}\033[0m", flush=True)
                         result_path = path.join(path_folder, f'"{filename}"')
                         while True:
                             chunk = await response.content.read(1024 * 1024)

@@ -43,7 +43,10 @@ async def _():
         "-youtubeVideoCodec", "-yvc", help="Youtube video codec", required=False
     )
     parser.add_argument(
-        "-show", "-s", help="Show media in file manager after download", action="store_true"
+        "-show",
+        "-s",
+        help="Show media in file manager after download",
+        action="store_true",
     )
     parser.add_argument(
         "-play", "-p", help="Play media after download", action="store_true"
@@ -95,7 +98,9 @@ async def _():
             show=args.show,
             play=args.play,
         )
-    print("\033[92mEverything Done!\033[0m")
+    print(
+        "\033[92mEverything Done!\033[0m Thanks for using pybalt! Leave a star on GitHub: https://github.com/nichind/pybalt"
+    )
 
 
 def main():
