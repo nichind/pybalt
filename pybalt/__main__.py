@@ -1,6 +1,6 @@
 import argparse
 from asyncio import run
-from .cobalt import CobaltAPI
+from .cobalt import Cobalt
 
 
 async def _():
@@ -43,6 +43,12 @@ async def _():
         "-youtubeVideoCodec", "-yvc", help="Youtube video codec", required=False
     )
     parser.add_argument(
+        "-show", "-s", help="Show media in file manager after download", action="store_true"
+    )
+    parser.add_argument(
+        "-play", "-p", help="Play media after download", action="store_true"
+    )
+    parser.add_argument(
         "-v", "-version", help="Display current pybalt version", action="store_true"
     )
     args = parser.parse_args()
@@ -60,7 +66,7 @@ async def _():
             sep="\n",
         )
         return
-    api = CobaltAPI(api_instance=args.instance, api_key=args.key)
+    api = Cobalt(api_instance=args.instance, api_key=args.key)
     if args.playlist:
         await api.download(
             url=args.playlist,
@@ -72,6 +78,8 @@ async def _():
             youtube_video_codec=args.youtubeVideoCodec
             if args.youtubeVideoCodec
             else None,
+            show=args.show,
+            play=args.play,
         )
         return
     for url in urls:
@@ -84,8 +92,10 @@ async def _():
             youtube_video_codec=args.youtubeVideoCodec
             if args.youtubeVideoCodec
             else None,
+            show=args.show,
+            play=args.play,
         )
-    # print('Everything is done! Have a nice day ^w^', 'Consider leaving a star on GitHub: https://github.com/nichind/pybalt', sep='\n')
+    print("\033[92mEverything Done!\033[0m")
 
 
 def main():

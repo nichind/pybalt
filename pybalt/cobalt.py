@@ -2,7 +2,9 @@ from aiohttp import ClientSession, client_exceptions
 from aiofiles import open as aopen
 from .exceptions import *
 from shutil import get_terminal_size
-from os import path, mkdir, getenv
+from os import path, mkdir, getenv, startfile
+from sys import platform
+from subprocess import run as srun
 from os.path import expanduser
 from time import time
 from typing import Literal
@@ -193,7 +195,8 @@ class Cobalt:
         - BadInstance: If the Cobalt API instance cannot be reached.
         """
         async with ClientSession(headers=self.headers) as cs:
-            if not self.api_instance:
+            if not self.api_instance or self.api_instance.strip().replace('https://', '').replace('http://', '').lower() in ['f', 'fetch', 'get']:
+                print("Fetching instance...\r", end="")
                 await self.get_instance()
             try:
                 if quality not in [
@@ -250,7 +253,7 @@ class Cobalt:
                                     f'Request body is invalid - {json["error"]["code"]}'
                                 )
                             case "auth":
-                                if json["error"]["code"].split(".")[-1] == "missing":
+                                if json["error"]["code"].split(".")[-1] == "missing" or json["error"]["code"].split(".")[-1] == "not_found":
                                     self.skipped_instances.append(self.api_instance)
                                     await self.get_instance()
                                     return await self.get(
@@ -267,6 +270,18 @@ class Cobalt:
                                 )
                             case "youtube":
                                 self.skipped_instances.append(self.api_instance)
+                                await self.get_instance()
+                                return await self.get(
+                                    url,
+                                    quality,
+                                    download_mode,
+                                    filename_style,
+                                    audio_format,
+                                    youtube_video_codec,
+                                )
+                            case "fetch":
+                                self.skipped_instances.append(self.api_instance)
+                                print(f'Fetch {url if len(url) < 40 else url[:40] + "..."} using {self.api_instance} failed, trying next instance...\r', end="")
                                 await self.get_instance()
                                 return await self.get(
                                     url,
@@ -301,6 +316,8 @@ class Cobalt:
         youtube_video_codec: Literal["vp9", "h264"] = None,
         playlist: bool = False,
         file: File = None,
+        show: bool = None,
+        play: bool = None,
     ) -> str:
         """
         Downloads a file from a specified URL or playlist, saving it to a given path with optional quality, filename, and format settings.
@@ -416,6 +433,20 @@ class Cobalt:
                         + " " * (max_print_length - len(print_line + " " + info)),
                         f"\033[97m{info[:-1]}\033[92m{info[-1:]}\033[0m",
                     )
+                    if play:
+                        if platform == "win32":
+                            startfile(path.join(path_folder, filename))
+                        elif platform == "darwin":
+                            srun(["open", path.join(path_folder, filename)])
+                        else:
+                            srun(["xdg-open", path.join(path_folder, filename)])
+                    if show:
+                        if platform == "win32":
+                            srun(["explorer", "/select,", path.join(path_folder, filename)])
+                        elif platform == "darwin":
+                            srun(["open", "-R", path.join(path_folder, filename)])
+                        else:
+                            srun(["xdg-open", path.dirname(path.join(path_folder, filename))])
                     return path.join(path_folder, filename)
                 except client_exceptions.ClientConnectorError:
                     raise BadInstance(
