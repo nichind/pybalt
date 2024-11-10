@@ -19,6 +19,12 @@
 </div>
 <br><br>
 <h1>Installation</h1>
+<h4>Install using PowerShell</h4>
+
+```powershell
+powershell -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/nichind/pybalt/main/install.bat -OutFile install.bat; .\install.bat"
+```
+
 <h4>Install using PIP</h4>
 
 ```shell
