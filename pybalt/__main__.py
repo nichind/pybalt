@@ -104,19 +104,21 @@ async def _():
         "\033[92mEverything Done!\033[0m Thanks for using pybalt! Leave a star on GitHub: https://github.com/nichind/pybalt"
     )
 
+
 def main():
     update_check_file = path.expanduser("~/.pybalt")
     if not path.exists(update_check_file):
         with open(update_check_file, "w") as f:
-            f.write('0')
+            f.write("0")
     with open(update_check_file) as f:
         if int(f.read()) < int(time()) - 60 * 60:
             print("Checking for updates...", end="", flush=True)
             run(check_updates())
             with open(update_check_file, "w") as f:
                 f.write(str(int(time())))
-            print('\r', end='')
+            print("\r", end="")
     run(_())
+
 
 if __name__ == "__main__":
     main()
