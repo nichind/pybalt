@@ -8,10 +8,10 @@ def readme():
 
 setup(
     name="pybalt",
-    version="2024.11.11",
+    version="2024.11.12",
     author="nichind",
     author_email="nichinddev@gmail.com",
-    description="",
+    description="Download mediafiles from YouTube, Twitter (X), Instagram, Reddit & more. CLI wrapper and python module for @imputnet's cobalt processing instance api.",
     long_description=readme(),
     long_description_content_type="text/markdown",
     url="https://github.com/nichind/pybalt",

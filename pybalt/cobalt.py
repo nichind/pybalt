@@ -11,7 +11,6 @@ from typing import Literal
 from dotenv import load_dotenv
 from re import findall
 from importlib.metadata import version
-from aiocfscrape import CloudflareScraper
 
 
 async def check_updates() -> bool:
@@ -181,17 +180,16 @@ class Cobalt:
                         key=lambda instance: instance["score"], reverse=True
                     )
                     try:
-                        async with CloudflareScraper() as session:
-                            async with session.get(
-                                good_instances[0]["protocol"]
-                                + "://"
-                                + good_instances[0]["api"]
-                            ) as resp:
-                                json = await resp.json()
-                                if json["cobalt"]["url"] in self.skipped_instances:
-                                    raise exceptions.BadInstance()
-                                self.api_instance = json["cobalt"]["url"]
-                                break
+                        async with cs.get(
+                            good_instances[0]["protocol"]
+                            + "://"
+                            + good_instances[0]["api"]
+                        ) as resp:
+                            json = await resp.json()
+                            if json["cobalt"]["url"] in self.skipped_instances:
+                                raise exceptions.BadInstance()
+                            self.api_instance = json["cobalt"]["url"]
+                            break
                     except Exception as exc:
                         good_instances.pop(0)
         return self.api_instance
