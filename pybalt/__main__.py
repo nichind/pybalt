@@ -108,12 +108,14 @@ def main():
     update_check_file = path.expanduser("~/.pybalt")
     if not path.exists(update_check_file):
         with open(update_check_file, "w") as f:
-            f.write(str(int(time())))
+            f.write('0')
     with open(update_check_file) as f:
-        if int(f.read()) < int(time()) - 60 * 60 * 24:  # daily check
+        if int(f.read()) < int(time()) - 60 * 60:
+            print("Checking for updates...", end="", flush=True)
             run(check_updates())
             with open(update_check_file, "w") as f:
                 f.write(str(int(time())))
+            print('\r', end='')
     run(_())
 
 if __name__ == "__main__":
