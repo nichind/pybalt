@@ -1,14 +1,15 @@
 from aiohttp import ClientSession, client_exceptions
 from aiofiles import open as aopen
-from .exceptions import *
+import pybalt.exceptions as exceptions
 from shutil import get_terminal_size
-from os import path, mkdir, getenv, startfile
+from os import path, makedirs, getenv
 from sys import platform
 from subprocess import run as srun
 from os.path import expanduser
 from time import time
 from typing import Literal
 from dotenv import load_dotenv
+from re import findall
 
 
 class File:
@@ -135,7 +136,7 @@ class Cobalt:
                     ):
                         continue
                     for service, status in instance["services"].items():
-                        if status != True:
+                        if not status:
                             if service == "youtube":
                                 continue
                             dead_services += 1
@@ -154,10 +155,10 @@ class Cobalt:
                         ) as resp:
                             json = await resp.json()
                             if json["cobalt"]["url"] in self.skipped_instances:
-                                raise Exception()
+                                raise exceptions.BadInstance()
                             self.api_instance = json["cobalt"]["url"]
                             break
-                    except:
+                    except exceptions.BadInstance:
                         good_instances.pop(0)
         return self.api_instance
 
@@ -195,7 +196,9 @@ class Cobalt:
         - BadInstance: If the Cobalt API instance cannot be reached.
         """
         async with ClientSession(headers=self.headers) as cs:
-            if not self.api_instance or self.api_instance.strip().replace('https://', '').replace('http://', '').lower() in ['f', 'fetch', 'get']:
+            if not self.api_instance or self.api_instance.strip().replace(
+                "https://", ""
+            ).replace("http://", "").lower() in ["f", "fetch", "get"]:
                 print("Fetching instance...\r", end="")
                 await self.get_instance()
             try:
@@ -223,7 +226,7 @@ class Cobalt:
                             "240p": "240",
                             "144p": "144",
                         }[quality]
-                    except:
+                    except KeyError:
                         quality = "1080"
                 json = {
                     "url": url.replace("'", "").replace('"', "").replace("\\", ""),
@@ -241,19 +244,23 @@ class Cobalt:
                     if "error" in json:
                         match json["error"]["code"].split(".")[2]:
                             case "link":
-                                raise LinkError(
+                                raise exceptions.LinkError(
                                     f'{url} is invalid - {json["error"]["code"]}'
                                 )
                             case "content":
-                                raise ContentError(
+                                raise exceptions.ContentError(
                                     f'cannot get content of {url} - {json["error"]["code"]}'
                                 )
                             case "invalid_body":
-                                raise InvalidBody(
+                                raise exceptions.InvalidBody(
                                     f'Request body is invalid - {json["error"]["code"]}'
                                 )
                             case "auth":
-                                if json["error"]["code"].split(".")[-1] == "missing" or json["error"]["code"].split(".")[-1] == "not_found":
+                                if (
+                                    json["error"]["code"].split(".")[-1] == "missing"
+                                    or json["error"]["code"].split(".")[-1]
+                                    == "not_found"
+                                ):
                                     self.skipped_instances.append(self.api_instance)
                                     await self.get_instance()
                                     return await self.get(
@@ -265,7 +272,7 @@ class Cobalt:
                                         youtube_video_codec,
                                     )
                                 print(self.headers)
-                                raise AuthError(
+                                raise exceptions.AuthError(
                                     f'Authentication failed - {json["error"]["code"]}'
                                 )
                             case "youtube":
@@ -281,7 +288,10 @@ class Cobalt:
                                 )
                             case "fetch":
                                 self.skipped_instances.append(self.api_instance)
-                                print(f'Fetch {url if len(url) < 40 else url[:40] + "..."} using {self.api_instance} failed, trying next instance...\r', end="")
+                                print(
+                                    f'Fetch {url if len(url) < 40 else url[:40] + "..."} using {self.api_instance} failed, trying next instance...\r',
+                                    end="",
+                                )
                                 await self.get_instance()
                                 return await self.get(
                                     url,
@@ -291,7 +301,7 @@ class Cobalt:
                                     audio_format,
                                     youtube_video_codec,
                                 )
-                        raise UnrecognizedError(
+                        raise exceptions.UnrecognizedError(
                             f'{json["error"]["code"]} - {json["error"]}'
                         )
                     return File(
@@ -302,7 +312,9 @@ class Cobalt:
                         filename=json["filename"],
                     )
             except client_exceptions.ClientConnectorError:
-                raise BadInstance(f"Cannot reach instance {self.api_instance}")
+                raise exceptions.BadInstance(
+                    f"Cannot reach instance {self.api_instance}"
+                )
 
     async def download(
         self,
@@ -331,7 +343,7 @@ class Cobalt:
         - filename_style (Literal['classic', 'pretty', 'basic', 'nerdy'], optional): Style of the filename.
         - audio_format (Literal['best', 'mp3', 'ogg', 'wav', 'opus'], optional): Audio format for the download if applicable.
         - youtube_video_codec (Literal['vp9', 'h264'], optional): Codec for YouTube video downloads.
-        - playlist (bool, optional): Whether the URL is a playlist link.
+        - playlist (bool or str, optional): Whether the URL is a playlist link, you can also pass a playlist link here.
         - file (File, optional): A pre-existing File object to use for the download.
 
         Returns:
@@ -340,14 +352,19 @@ class Cobalt:
         Raises:
         - BadInstance: If the specified instance cannot be reached.
         """
-        if playlist:
+        if playlist or len(findall("[&?]list=([^&]+)", url)) > 0:
+            if type(playlist) is str:
+                url = playlist
+
             from pytube import Playlist
 
             playlist = Playlist(url)
-            for url in playlist:
-                print(url)
+            for i, item_url in enumerate(playlist.video_urls):
+                if url.split(".")[0].endswith("music"):
+                    item_url.replace("www", "music")
+                print(f"[{i + 1}/{len(playlist.video_urls)}] {item_url}")
                 await self.download(
-                    url,
+                    item_url,
                     quality=quality,
                     filename=filename,
                     path_folder=path_folder,
@@ -373,7 +390,7 @@ class Cobalt:
         if path_folder is None:
             path_folder = path.join(expanduser("~"), "Downloads")
         if not path.exists(path_folder):
-            mkdir(path_folder)
+            makedirs(path_folder)
 
         def shorten(s: str, additional_len: int = 0) -> str:
             columns, _ = get_terminal_size()
@@ -435,6 +452,8 @@ class Cobalt:
                     )
                     if play:
                         if platform == "win32":
+                            from os import startfile
+
                             startfile(path.join(path_folder, filename))
                         elif platform == "darwin":
                             srun(["open", path.join(path_folder, filename)])
@@ -442,16 +461,29 @@ class Cobalt:
                             srun(["xdg-open", path.join(path_folder, filename)])
                     if show:
                         if platform == "win32":
-                            srun(["explorer", "/select,", path.join(path_folder, filename)])
+                            srun(
+                                [
+                                    "explorer",
+                                    "/select,",
+                                    path.join(path_folder, filename),
+                                ]
+                            )
                         elif platform == "darwin":
                             srun(["open", "-R", path.join(path_folder, filename)])
                         else:
-                            srun(["xdg-open", path.dirname(path.join(path_folder, filename))])
+                            srun(
+                                [
+                                    "xdg-open",
+                                    path.dirname(path.join(path_folder, filename)),
+                                ]
+                            )
                     return path.join(path_folder, filename)
-                except client_exceptions.ClientConnectorError:
-                    raise BadInstance(
-                        f"Cannot reach instance {self.api_instance}. Are you connected to the internet?"
-                    )
+                # except client_exceptions.ClientConnectorError:
+                #     raise exceptions.ConnectionError(
+                #         "Client connector error. Are you connected to the internet?"
+                #     )
+                except KeyboardInterrupt:
+                    return
 
 
 Pybalt = Cobalt

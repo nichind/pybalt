@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name="pybalt",
-    version="2024.11.7",
+    version="2024.11.8",
     author="nichind",
     author_email="nichinddev@gmail.com",
     description="",
