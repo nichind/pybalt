@@ -41,7 +41,7 @@ async def _():
         type=str,
         help="Filename style",
         required=False,
-        options=["classic", "pretty", "basic", "nerdy"],
+        choices=["classic", "pretty", "basic", "nerdy"],
     )
     parser.add_argument(
         "-audioFormat",
@@ -49,14 +49,14 @@ async def _():
         type=str,
         help="Audio format",
         required=False,
-        options=["mp3", "ogg", "wav", "opus"],
+        choices=["mp3", "ogg", "wav", "opus"],
     )
     parser.add_argument(
         "-youtubeVideoCodec",
         "-yvc",
         help="Youtube video codec",
         required=False,
-        options=["vp9", "h264"],
+        choices=["vp9", "h264"],
     )
     parser.add_argument(
         "-show",
