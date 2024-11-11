@@ -29,7 +29,7 @@ powershell -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/ni
 
 ```shell
 pip install pybalt
-```
+```  
 
 This should create aliases `pybalt` and `cobalt` in your shell.
 
@@ -54,7 +54,7 @@ COBALT_API_KEY=YOUR_API_KEY
 COBALT_USER_AGENT=YOUR_USER_AGENT
 ```
 
-By default pybalt uses `https://dwnld.nichind.dev` as the processing instance. I recommend hosting your own instance or asking someone to give you `api key` for their instance.
+By default pybalt tries to parse any avalible instance for you. I recommend hosting your own instance or asking someone to give you `api key` for their instance.
 
 <br>
 <h2>As a CLI</h2>

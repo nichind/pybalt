@@ -11,6 +11,7 @@ from typing import Literal
 from dotenv import load_dotenv
 from re import findall
 from importlib.metadata import version
+from aiocfscrape import CloudflareScraper
 
 
 async def check_updates() -> bool:
@@ -115,9 +116,14 @@ class Cobalt:
         self.api_instance = (
             f"""{'https://' if "http" not in api_instance else ""}{api_instance}"""
             if api_instance
-            else "https://dwnld.nichind.dev"
+            else None
         )
         self.api_key = api_key if api_key else ""
+        if not self.api_instance:
+            print(
+                "Couldn't find cobalt instance url. Your experience may/will be limited. Please set COBALT_API_URL environment variable or pass it as an argument (-i 'url') / constuctor (defers on what version you use, cli or as module)."
+            )
+            self.api_instance = "https://dwnld.nichind.dev"
         if self.api_instance == "https://dwnld.nichind.dev" and not self.api_key:
             self.api_key = "b05007aa-bb63-4267-a66e-78f8e10bf9bf"
         self.headers = headers
@@ -133,6 +139,8 @@ class Cobalt:
                 if getenv("COBALT_USER_AGENT")
                 else "pybalt/python"
             )
+        if self.headers["Authorization"] == "":
+            del self.headers["Authorization"]
         self.skipped_instances = []
 
     async def get_instance(self):
@@ -145,7 +153,9 @@ class Cobalt:
         If it is, it picks the next one.
         """
         headers = self.headers
-        headers["User-Agent"] = "https://github.com/nichind/pybalt"
+        headers["User-Agent"] = (
+            "https://github.com/nichind/pybalt - Cobalt CLI & Python module. (aiohttp Client)"
+        )
         async with ClientSession(headers=headers) as cs:
             async with cs.get(
                 "https://instances.cobalt.best/api/instances.json"
@@ -161,28 +171,28 @@ class Cobalt:
                         continue
                     for service, status in instance["services"].items():
                         if not status:
-                            if service == "youtube":
-                                continue
                             dead_services += 1
                     if dead_services > 7:
                         continue
                     good_instances.append(instance)
                 while True:
+                    print(f"Found {len(good_instances)} good instances.")
                     good_instances.sort(
                         key=lambda instance: instance["score"], reverse=True
                     )
                     try:
-                        async with cs.get(
-                            good_instances[0]["protocol"]
-                            + "://"
-                            + good_instances[0]["api"]
-                        ) as resp:
-                            json = await resp.json()
-                            if json["cobalt"]["url"] in self.skipped_instances:
-                                raise exceptions.BadInstance()
-                            self.api_instance = json["cobalt"]["url"]
-                            break
-                    except exceptions.BadInstance:
+                        async with CloudflareScraper() as session:
+                            async with session.get(
+                                good_instances[0]["protocol"]
+                                + "://"
+                                + good_instances[0]["api"]
+                            ) as resp:
+                                json = await resp.json()
+                                if json["cobalt"]["url"] in self.skipped_instances:
+                                    raise exceptions.BadInstance()
+                                self.api_instance = json["cobalt"]["url"]
+                                break
+                    except Exception as exc:
                         good_instances.pop(0)
         return self.api_instance
 
@@ -295,7 +305,6 @@ class Cobalt:
                                         audio_format,
                                         youtube_video_codec,
                                     )
-                                print(self.headers)
                                 raise exceptions.AuthError(
                                     f'Authentication failed - {json["error"]["code"]}'
                                 )
