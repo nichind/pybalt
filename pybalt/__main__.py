@@ -1,6 +1,8 @@
 import argparse
 from asyncio import run
-from .cobalt import Cobalt
+from .cobalt import Cobalt, check_updates
+from os import path
+from time import time
 
 
 async def _():
@@ -56,7 +58,7 @@ async def _():
     )
     args = parser.parse_args()
     if args.v:
-        raise NotImplementedError(f"Not implemented yet")
+        raise NotImplementedError("Not implemented yet")
     if args.url_arg:
         args.url = args.url_arg
     urls = ([args.url] if args.url else []) + (
@@ -103,9 +105,14 @@ async def _():
     )
 
 
-def main():
-    run(_())
-
-
 if __name__ == "__main__":
-    main()
+    update_check_file = path.expanduser("~/.pybalt")
+    if not path.exists(update_check_file):
+        with open(update_check_file, "w") as f:
+            f.write(str(int(time())))
+    with open(update_check_file) as f:
+        if int(f.read()) < int(time()) - 60 * 60 * 24:  # daily check
+            run(check_updates())
+            with open(update_check_file, "w") as f:
+                f.write(str(int(time())))
+    run(_())

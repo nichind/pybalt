@@ -10,6 +10,30 @@ from time import time
 from typing import Literal
 from dotenv import load_dotenv
 from re import findall
+from importlib.metadata import version
+
+
+async def check_updates() -> bool:
+    """
+    Checks for updates of pybalt by comparing the current version to the latest version from pypi.org
+
+    Returns:
+        bool: True if the check was successful, False otherwise
+    """
+    try:
+        current_version = version("pybalt")
+        async with ClientSession() as session:
+            async with session.get("https://pypi.org/pypi/pybalt/json") as response:
+                data = await response.json()
+                last_version = data["info"]["version"]
+        if last_version != current_version:
+            print(
+                f"pybalt {last_version} is avaliable (current: {current_version}). Update with pip install pyeasypay -U"
+            )
+            return False
+    except Exception as e:
+        print(f"Failed to check for updates: {e}")
+    return True
 
 
 class File:
@@ -405,6 +429,7 @@ class Cobalt:
                     total_size = 0
                     start_time = time()
                     last_update = 0
+                    last_speed_update = 0
                     downloaded_since_last = 0
                     async with session.get(file.tunnel) as response:
                         print(f"\033[97m{filename}\033[0m", flush=True)
@@ -420,12 +445,16 @@ class Cobalt:
                                 progress_index += 1
                                 if progress_index > len(progress_chars) - 1:
                                     progress_index = 0
-                                speed = downloaded_since_last / (time() - last_update)
-                                speed_display = (
-                                    f"{round(speed / 1024 / 1024, 2)}Mb/s"
-                                    if speed >= 0.92 * 1024 * 1024
-                                    else f"{round(speed / 1024, 2)}Kb/s"
-                                )
+                                if last_speed_update < time() - 1:
+                                    last_speed_update = time()
+                                    speed = downloaded_since_last / (
+                                        time() - last_update
+                                    )
+                                    speed_display = (
+                                        f"{round(speed / 1024 / 1024, 2)}Mb/s"
+                                        if speed >= 0.92 * 1024 * 1024
+                                        else f"{round(speed / 1024, 2)}Kb/s"
+                                    )
                                 downloaded_since_last = 0
                                 last_update = time()
                                 info = f"[{round(total_size / 1024 / 1024, 2)}Mb \u2015 {speed_display}] {progress_chars[progress_index]}"
