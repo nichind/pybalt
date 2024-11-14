@@ -13,7 +13,7 @@
   <div align="center" style="display: flex; flex-flow: column wrap;">
   <h3>CLI Preview</h3>
   
-  ![CLI Preview](https://github.com/user-attachments/assets/cf5fd9a9-520b-4970-b8c2-42baa80d7523)
+  https://github.com/user-attachments/assets/cf5fd9a9-520b-4970-b8c2-42baa80d7523
   </div>
   
 </div>
