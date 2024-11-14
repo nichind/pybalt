@@ -5,15 +5,15 @@
   <br>
   
   [![GitHub stars](https://img.shields.io/github/stars/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
-  [![Get on pypi](https://img.shields.io/pypi/v/pybalt.svg)](https://pypi.org/project/pybalt/)
+  [![Get on PyPI](https://img.shields.io/pypi/v/pybalt.svg)](https://pypi.org/project/pybalt/)
   [![Last commit](https://img.shields.io/github/last-commit/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
   [![Pip module installs total downloads](https://img.shields.io/pypi/dm/pybalt.svg)](https://pypi.org/project/pybalt/)
   [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
   
   <div align="center" style="display: flex; flex-flow: column wrap;">
   <h3>CLI Preview</h3>
-    
-  https://github.com/user-attachments/assets/cf5fd9a9-520b-4970-b8c2-42baa80d7523
+  
+  ![CLI Preview](https://github.com/user-attachments/assets/cf5fd9a9-520b-4970-b8c2-42baa80d7523)
   </div>
   
 </div>
@@ -35,7 +35,7 @@ This should create aliases `pybalt` and `cobalt` in your shell.
 
 Try running `cobalt -h` to see the help message.
 
-If for some reason it didn't work, try using it with python:
+If for some reason it didn't work, try using it with Python:
 
 ```shell
 python -m pybalt
@@ -47,8 +47,7 @@ python -m pybalt
 
 <h3>Selecting processing instance</h3>
 
-You can set **processing instance url**, **api key** and **user-agent** to enviroment variables, pybalt will use them if none was provided.
-
+You can set **processing instance URL**, **API key**, and **user-agent** as environment variables; pybalt will use them if none are provided.
 
 ```
 COBALT_API_URL=YOUR_INSTANCE_URL
@@ -56,18 +55,18 @@ COBALT_API_KEY=YOUR_API_KEY
 COBALT_USER_AGENT=YOUR_USER_AGENT
 ```
 
-By default pybalt tries to parse any avalible instance for you. I recommend hosting your own instance or asking someone to give you `api key` for their instance.
+By default, pybalt attempts to parse any available instance for you. It is recommended to host your own instance or request an `API key` from someone else's instance.
 
 <br>
 <h2>As a CLI</h2>
 <details open>
 <summary></summary>
 
-Every command here uses the `cobalt` alias, you can also use `pybalt` or `python -m pybalt` as well.
+Every command here uses the `cobalt` alias; you can also use `pybalt` or `python -m pybalt`.
 
-By default all downloads are saved in a user downloads folder `~/Downloads` or the one specified by the `--folder` flag.
+By default, all downloads are saved in the user's downloads folder `~/Downloads`, or the one specified by the `--folder` flag.
 
-Get list of all available commands by running:
+Get a list of all available commands by running:
 
 ```shell
 cobalt -h
@@ -80,14 +79,14 @@ cobalt -h
 cobalt -u 'https://youtube.com/watch?v=8ZP5eqm4JqM'
 ```
 
-you can also provide url as positional argument:
+You can also provide the URL as a positional argument:
 
 ```shell
 cobalt 'https://youtube.com/watch?v=8ZP5eqm4JqM'
 ```
 
 <br>
-<h3>Download Youtube playlist</h3>
+<h3>Download YouTube playlist</h3>
 
 ```shell
 cobalt -pl 'https://youtube.com/playlist?list=PL_93TBqf4ymR9GsuI9W4kQ-G3WM7d2Tqj'
@@ -105,7 +104,7 @@ https://youtube.com/watch?v=8ZP...
 ...
 ```
 
-then run:
+Then run:
 
 ```shell
 cobalt -l 'path/to/file.txt'
@@ -114,7 +113,7 @@ cobalt -l 'path/to/file.txt'
 <br>
 <h3>More examples</h3>
 
-Download all videos from a YouTube playlist in `720p` to folder `/Music/`, filename style `classic`, use instance `https://dwnld.nichind.dev` with `api key` authorization
+Download all videos from a YouTube playlist in `720p` to folder `/Music/`, with filename style `classic`, using instance `https://dwnld.nichind.dev` and `API key` authorization:
 
 ```shell
 cobalt -pl 'https://youtube.com/playlist?list=PL_93TBqf4ymR9GsuI9W4kQ-G3WM7d2Tqj' -q 720 -f './Music/' -fs 'classic' -i 'https://dwnld.nichind.dev' -k 'YOUR_API_KEY'
@@ -132,28 +131,24 @@ cobalt -pl 'https://youtube.com/playlist?list=PL_93TBqf4ymR9GsuI9W4kQ-G3WM7d2Tqj
 from pybalt import Cobalt
 from asyncio import run
 
-
 async def main():
     cobalt = Cobalt()
     path = await cobalt.download('https://youtube.com/watch?v=8ZP5eqm4JqM')
     print('Downloaded: ', path)  # Downloaded: /Users/%USER%/Downloads/8ZP5eqm4JqM.mp4
 
-
 run(main())
 ```
 
-You can pass arguments inside Cobalt object:
+You can pass arguments inside the Cobalt object:
 
 ```python
 from pybalt import Cobalt
 from asyncio import run
 
-
 async def main():
     cobalt = Cobalt(api_instance='YOUR_INSTANCE_URL', api_key='YOUR_API_KEY', headers={...})
     path = await cobalt.download(url='https://youtube.com/watch?v=8ZP5eqm4JqM', quality='1080')
     print('Downloaded: ', path)  # Downloaded: /Users/%USER%/Downloads/8ZP5eqm4JqM.mp4
-
 
 run(main())
 ``` 
@@ -168,3 +163,4 @@ If you have any questions or suggestions, please [open an issue](https://github.
 <h3>Contributors</h3>
 
 <img src="https://contrib.rocks/image?repo=nichind/pybalt" alt="Contributors" style="max-width: 100%;"/>
+
