@@ -3,7 +3,7 @@
   <h3>pybalt</h3>
   <h5>Python module and CLI tool for downloading media through Cobalt processing instances.</h5>
   <br>
-
+  
   [![GitHub stars](https://img.shields.io/github/stars/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
   [![Get on pypi](https://img.shields.io/pypi/v/pybalt.svg)](https://pypi.org/project/pybalt/)
   [![Last commit](https://img.shields.io/github/last-commit/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
@@ -12,7 +12,8 @@
   
   <div align="center" style="display: flex; flex-flow: column wrap;">
   <h3>CLI Preview</h3>
-  <video src='./assets/preview.mp4' controls>
+    
+  https://github.com/user-attachments/assets/cf5fd9a9-520b-4970-b8c2-42baa80d7523
   </div>
   
 </div>
