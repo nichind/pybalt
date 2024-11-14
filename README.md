@@ -1,26 +1,26 @@
 <div align="center" style="display: flex; flex-flow: column wrap;">
   <img src='./assets/logo.png' style='border-radius: 8px; width: 124px'></img>
   <h3>pybalt</h3>
-  <h5>Python module and CLI tool for downloading media through Cobalt processing instances.</h5>
-  <br>
+  <h5>CLI tool and python module for downloading media through Cobalt processing instances.</h5>
   
-  [![GitHub stars](https://img.shields.io/github/stars/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
   [![Get on PyPI](https://img.shields.io/pypi/v/pybalt.svg)](https://pypi.org/project/pybalt/)
   [![Last commit](https://img.shields.io/github/last-commit/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
   [![Pip module installs total downloads](https://img.shields.io/pypi/dm/pybalt.svg)](https://pypi.org/project/pybalt/)
+  [![GitHub stars](https://img.shields.io/github/stars/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
   [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-  
+
   <div align="center" style="display: flex; flex-flow: column wrap;">
   <h3>CLI Preview</h3>
-  
+
   https://github.com/user-attachments/assets/cf5fd9a9-520b-4970-b8c2-42baa80d7523
   </div>
   
 </div>
 <br><br>
 <h1>Installation</h1>
-<h4>Install using PowerShell</h4>
+<h4>Install pybalt using PowerShell on Windows</h4>
 
+Downloads [install.bat](./install.bat) and executes it.
 ```powershell
 powershell -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/nichind/pybalt/main/install.bat -OutFile install.bat; .\install.bat"
 ```
@@ -35,7 +35,7 @@ This should create aliases `pybalt` and `cobalt` in your shell.
 
 Try running `cobalt -h` to see the help message.
 
-If for some reason it didn't work, try using it with Python:
+If for some reason it didn't work, try using it directly from python package:
 
 ```shell
 python -m pybalt
@@ -55,7 +55,7 @@ COBALT_API_KEY=YOUR_API_KEY
 COBALT_USER_AGENT=YOUR_USER_AGENT
 ```
 
-By default, pybalt attempts to parse any available instance for you. It is recommended to host your own instance or request an `API key` from someone else's instance.
+> By default, pybalt attempts to use any available instance for you provided by [public list of instances](https://instances.cobalt.best). It is recommended to host your own instance or request an `API key` from someone else's instance.
 
 <br>
 <h2>As a CLI</h2>
@@ -64,7 +64,7 @@ By default, pybalt attempts to parse any available instance for you. It is recom
 
 Every command here uses the `cobalt` alias; you can also use `pybalt` or `python -m pybalt`.
 
-By default, all downloads are saved in the user's downloads folder `~/Downloads`, or the one specified by the `--folder` flag.
+By default, all downloads are saved in the user's downloads folder `~/Downloads`, or the one specified by the `-f` (`-folder`) flag.
 
 Get a list of all available commands by running:
 
@@ -122,8 +122,8 @@ cobalt -pl 'https://youtube.com/playlist?list=PL_93TBqf4ymR9GsuI9W4kQ-G3WM7d2Tqj
 </details>
 <br><br>
 <h2>As a module</h2>
-
 <details open>
+<summary></summary>
 
 <h3>Download video from URL</h3>
 
