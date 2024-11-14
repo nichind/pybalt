@@ -1,7 +1,7 @@
 <div align="center" style="display: flex; flex-flow: column wrap;">
-  <img src='./assets/logo.png' style='border-radius: 8px; width: 300px'></img>
+  <img src='./assets/logo.png' style='border-radius: 8px; width: 124px'></img>
   <h3>pybalt</h3>
-  <h5>Python module & CLI to download media using cobalt processing instance(s)</h5>
+  <h5>Python module and CLI tool for downloading media through Cobalt processing instances.</h5>
   <br>
 
   [![GitHub stars](https://img.shields.io/github/stars/nichind/pybalt.svg)](https://github.com/nichind/pybalt)
@@ -12,8 +12,7 @@
   
   <div align="center" style="display: flex; flex-flow: column wrap;">
   <h3>CLI Preview</h3>
-  <img src='./assets/cli-preview.gif' style='border-radius: 8px'></img>
-
+  <video src='./assets/preview.mp4' controls>
   </div>
   
 </div>
@@ -42,6 +41,8 @@ python -m pybalt
 ```
 <br><br>
 <h1>Usage & Examples</h1>
+
+<img src='./assets/cli-preview.gif' style='border-radius: 8px'></img>
 
 <h3>Selecting processing instance</h3>
 
