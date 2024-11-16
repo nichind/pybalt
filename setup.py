@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name="pybalt",
-    version="2024.11.14",
+    version="2024.11.15",
     author="nichind",
     author_email="nichinddev@gmail.com",
     description="Download mediafiles from YouTube, Twitter (X), Instagram, Reddit & more. CLI wrapper and python module for @imputnet's cobalt processing instance api.",
@@ -20,14 +20,14 @@ setup(
         "aiohttp",
         "aiofiles",
         "pytube",
-        'python-dotenv',
+        "python-dotenv",
     ],
     classifiers=[
         "Programming Language :: Python :: 3.11",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.9",
+    python_requires=">=3.8",
     entry_points={
         "console_scripts": [
             "pybalt=pybalt.__main__:main",
@@ -35,4 +35,3 @@ setup(
         ],
     },
 )
-

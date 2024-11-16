@@ -516,10 +516,6 @@ class Cobalt:
                                 ]
                             )
                     return path.join(path_folder, filename)
-                # except client_exceptions.ClientConnectorError:
-                #     raise exceptions.ConnectionError(
-                #         "Client connector error. Are you connected to the internet?"
-                #     )
                 except KeyboardInterrupt:
                     return
 
