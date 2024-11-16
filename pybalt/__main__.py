@@ -3,6 +3,7 @@ from asyncio import run
 from .cobalt import Cobalt, check_updates
 from os import path
 from time import time
+from importlib.metadata import version
 
 
 async def _():
@@ -70,18 +71,31 @@ async def _():
     parser.add_argument(
         "-v", "-version", help="Display current pybalt version", action="store_true"
     )
+    parser.add_argument("-up", "-update", help="Check for updates", action="store_true")
     args = parser.parse_args()
     if args.v:
-        raise NotImplementedError("Not implemented yet")
+        try:
+            print(f"pybalt {version('pybalt')}")
+        except Exception:
+            print("Failed to get pybalt version. Running from dev?")
+        return
+    if args.up:
+        await check_updates()
+        return
     if args.url_arg:
         args.url = args.url_arg
     urls = ([args.url] if args.url else []) + (
         [line.strip() for line in open(args.list)] if args.list else []
     )
+    if args.url and not path.isdir(args.url) and path.isfile(args.url):
+        urls = [
+            line.strip() for line in open(args.url_arg if args.url_arg else args.url)
+        ]
     if not urls and not args.playlist:
         print(
             "No URLs provided",
-            "Use -url 'https://...' or -list 'path/to/txt' or -playlist 'https://...'",
+            "Expected media url, path to file with list of URLs or youtube playlist link",
+            "Example: cobalt 'https://youtube.com/watch?...' -s",
             sep="\n",
         )
         return
@@ -126,7 +140,7 @@ def main():
             f.write("0")
     with open(update_check_file) as f:
         if int(f.read()) < int(time()) - 60 * 60:
-            print("Checking for updates...", end="", flush=True)
+            print("Checking for updates...", flush=True)
             run(check_updates())
             with open(update_check_file, "w") as f:
                 f.write(str(int(time())))

@@ -10,7 +10,7 @@ from time import time
 from typing import Literal
 from dotenv import load_dotenv
 from re import findall
-from importlib.metadata import version
+from importlib.metadata import version, PackageNotFoundError
 
 
 async def check_updates() -> bool:
@@ -31,6 +31,8 @@ async def check_updates() -> bool:
                 f"pybalt {last_version} is avaliable (current: {current_version}). Update with pip install pyeasypay -U"
             )
             return False
+    except PackageNotFoundError:
+        print("pybalt is not installed. Running from dev?")
     except Exception as e:
         print(f"Failed to check for updates: {e}")
     return True
@@ -190,7 +192,7 @@ class Cobalt:
                                 raise exceptions.BadInstance()
                             self.api_instance = json["cobalt"]["url"]
                             break
-                    except Exception as exc:
+                    except Exception:
                         good_instances.pop(0)
         return self.api_instance
 
@@ -465,11 +467,11 @@ class Cobalt:
                                 downloaded_since_last = 0
                                 last_update = time()
                                 info = f"[{round(total_size / 1024 / 1024, 2)}Mb \u2015 {speed_display}] {progress_chars[progress_index]}"
+                                max_print_length, _ = get_terminal_size()
+                                max_print_length -= 3
                                 print_line = shorten(
                                     result_path, additional_len=len(info)
                                 )
-                                max_print_length, _ = get_terminal_size()
-                                max_print_length -= 3
                                 print(
                                     "\r" + print_line,
                                     " "
