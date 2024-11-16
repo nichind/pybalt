@@ -20,13 +20,14 @@ setup(
         "aiohttp",
         "aiofiles",
         "pytube",
+        'python-dotenv',
     ],
     classifiers=[
         "Programming Language :: Python :: 3.11",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     entry_points={
         "console_scripts": [
             "pybalt=pybalt.__main__:main",
@@ -34,3 +35,4 @@ setup(
         ],
     },
 )
+
