@@ -21,6 +21,9 @@
 <h4>Install pybalt using PowerShell on Windows</h4>
 
 Downloads [install.bat](./install.bat) and executes it.
+
+Powershell should be run as administrator, otherwise aliases (`cobalt`, `pybalt`) in terminal will not work.
+
 ```powershell
 powershell -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/nichind/pybalt/main/install.bat -OutFile install.bat; .\install.bat"
 ```

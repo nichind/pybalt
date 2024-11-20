@@ -61,7 +61,7 @@ class File:
         - downloaded (bool): Whether the file has been downloaded.
         - path (str): The path where the file is saved.
         """
-        self.cobalt = cobalt
+        self.cobalt = cobalt if cobalt else Cobalt()
         self.status = status
         self.url = url
         self.tunnel = tunnel
@@ -88,6 +88,15 @@ class File:
 
     def __repr__(self):
         return "<Media " + (self.path if self.path else f'"{self.filename}"') + ">"
+
+
+class DownloadedFile(File):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.downloaded = True
+
+    def __repr__(self):
+        return "<File " + (self.path if self.path else f'"{self.filename}"') + ">"
 
 
 class Cobalt:
