@@ -21,7 +21,7 @@ class Translator:
         Parameters:
         - language (str, optional): The language to use for translations. Defaults to the system language or "en".
         """
-        self.language = getenv("LANG")[:2] or language
+        self.language = getenv("LANG", "en")[:2] or language
 
     def translate(self, key: str, locale: Literal["en", "ru"] = None) -> str:
         """
