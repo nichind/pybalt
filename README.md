@@ -131,12 +131,11 @@ cobalt -pl 'https://youtube.com/playlist?list=PL_93TBqf4ymR9GsuI9W4kQ-G3WM7d2Tqj
 <h3>Download video from URL</h3>
 
 ```python
-from pybalt import Cobalt
+from pybalt import download
 from asyncio import run
 
 async def main():
-    cobalt = Cobalt()
-    path = await cobalt.download('https://youtube.com/watch?v=8ZP5eqm4JqM')
+    path = await download('https://youtube.com/watch?v=8ZP5eqm4JqM')
     print('Downloaded: ', path)  # Downloaded: /Users/%USER%/Downloads/8ZP5eqm4JqM.mp4
 
 run(main())
