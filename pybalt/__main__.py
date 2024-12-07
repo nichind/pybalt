@@ -1,6 +1,6 @@
 import argparse
 from asyncio import run
-from .cobalt import Cobalt, check_updates
+from .cobalt import Cobalt, check_updates, tl
 from os import path
 from time import time
 from importlib.metadata import version
@@ -8,10 +8,10 @@ from importlib.metadata import version
 
 async def _():
     parser = argparse.ArgumentParser()
-    parser.add_argument("url_arg", nargs="?", type=str, help="URL to download")
-    parser.add_argument("-url", "-u", type=str, help="URL to download", required=False)
+    parser.add_argument("url_arg", nargs="?", type=str, help=tl("URL_ARGUMENT"))
+    parser.add_argument("-url", "-u", type=str, help=tl("URL_ARGUMENT"), required=False)
     parser.add_argument(
-        "-list", "-l", type=str, help="Path to file with list of URLs", required=False
+        "-list", "-l", type=str, help=tl("FILE_ARGUMENT"), required=False
     )
     parser.add_argument(
         "-quality",
@@ -19,28 +19,30 @@ async def _():
         "-res",
         "-r",
         type=str,
-        help="Video quality to try download",
+        help=tl("QUALITY_ARGUMENT"),
         required=False,
     )
     parser.add_argument(
-        "-folder", "-f", type=str, help="Path to folder", required=False
+        "-folder", "-f", type=str, help=tl("FOLDER_ARGUMENT"), required=False
     )
     parser.add_argument(
-        "-instance", "-i", type=str, help="Cobalt API instance", required=False
+        "-instance", "-i", type=str, help=tl("INSTANCE_ARGUMENT"), required=False
     )
-    parser.add_argument("-key", "-k", type=str, help="API key", required=False)
+    parser.add_argument(
+        "-key", "-k", type=str, help=tl("APIKEY_ARGUMENT"), required=False
+    )
     parser.add_argument(
         "-playlist",
         "-pl",
         type=str,
-        help="Playlist URL (currently YouTube only)",
+        help=tl("PLAYLIST_ARGUMENT"),
         required=False,
     )
     parser.add_argument(
         "-filenameStyle",
         "-fs",
         type=str,
-        help="Filename style",
+        help=tl("FILENAME_ARGUMENT"),
         required=False,
         choices=["classic", "pretty", "basic", "nerdy"],
     )
@@ -48,36 +50,36 @@ async def _():
         "-audioFormat",
         "-af",
         type=str,
-        help="Audio format",
+        help=tl("AUDIO_ARGUMENT"),
         required=False,
         choices=["mp3", "ogg", "wav", "opus"],
     )
     parser.add_argument(
         "-youtubeVideoCodec",
         "-yvc",
-        help="Youtube video codec",
+        help=tl("YOUTUBE_VIDEO_CODEC_ARGUMENT"),
         required=False,
         choices=["vp9", "h264"],
     )
     parser.add_argument(
         "-show",
         "-s",
-        help="Show media in file manager after download",
+        help=tl("SHOW_ARGUMENT"),
         action="store_true",
     )
+    parser.add_argument("-play", "-p", help=tl("PLAY_ARGUMENT"), action="store_true")
     parser.add_argument(
-        "-play", "-p", help="Play media after download", action="store_true"
+        "-v", "-version", help=tl("VERSION_ARGUMENT"), action="store_true"
     )
     parser.add_argument(
-        "-v", "-version", help="Display current pybalt version", action="store_true"
+        "-up", "-update", help=tl("UPDATE_ARGUMENT"), action="store_true"
     )
-    parser.add_argument("-up", "-update", help="Check for updates", action="store_true")
     args = parser.parse_args()
     if args.v:
         try:
-            print(f"pybalt {version('pybalt')}")
+            print(tl("VERSION").format(version("pybalt")))
         except Exception:
-            print("Failed to get pybalt version. Running from dev?")
+            print(tl("PACKAGE_NOT_FOUND"))
         return
     if args.up:
         await check_updates()
@@ -93,9 +95,7 @@ async def _():
         ]
     if not urls and not args.playlist:
         print(
-            "No URLs provided",
-            "Expected media url, path to file with list of URLs or youtube playlist link",
-            "Example: cobalt 'https://youtube.com/watch?...' -s",
+            tl("NO_URL_PROVIDED"),
             sep="\n",
         )
         return
@@ -128,9 +128,7 @@ async def _():
             show=args.show,
             play=args.play,
         )
-    print(
-        "\033[92mEverything Done!\033[0m Thanks for using pybalt! Leave a star on GitHub: https://github.com/nichind/pybalt"
-    )
+    print(tl("SUCCESS"))
 
 
 def main():
@@ -140,7 +138,7 @@ def main():
             f.write("0")
     with open(update_check_file) as f:
         if int(f.read()) < int(time()) - 60 * 60:
-            print("Checking for updates...", flush=True)
+            print(tl("CHECKING_FOR_UPDATES"), flush=True)
             run(check_updates())
             with open(update_check_file, "w") as f:
                 f.write(str(int(time())))

@@ -49,6 +49,7 @@ class Translator:
                         .replace("\\n", "\n")
                         .replace("\\t", "\t")
                         .replace("\\r", "\r")
+                        .replace("\\033", "\033")
                     )
                     while translated.endswith("\n"):
                         translated = translated[:-1]

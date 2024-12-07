@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name="pybalt",
-    version="2024.12.2",
+    version="2024.12.3",
     author="nichind",
     author_email="nichinddev@gmail.com",
     description="Download mediafiles from YouTube, Twitter (X), Instagram, Reddit & more. CLI & python module for @imputnet's cobalt processing instance api.",
@@ -36,6 +36,11 @@ setup(
         "download",
         "youtube-downloader",
         "twitter-downloader",
+        "x-downloader",
+        "instagram-downloader",
+        "reddit-downloader",
+        "twitch-downloader",
+        "bilibili-downloader",
     ],
     classifiers=[
         "Programming Language :: Python :: 3.11",
