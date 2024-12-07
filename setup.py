@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name="pybalt",
-    version="2024.11.16",
+    version="2024.12.1",
     author="nichind",
     author_email="nichinddev@gmail.com",
     description="Download mediafiles from YouTube, Twitter (X), Instagram, Reddit & more. CLI & python module for @imputnet's cobalt processing instance api.",
@@ -22,7 +22,21 @@ setup(
         "pytube",
         "python-dotenv",
     ],
-    keywords=['downloader', 'cobalt', 'cobalt-cli', 'youtube', 'twitter', 'x', 'instagram', 'reddit', 'twitch', 'bilibili', 'download', 'youtube-downloader', 'twitter-downloader'],
+    keywords=[
+        "downloader",
+        "cobalt",
+        "cobalt-cli",
+        "youtube",
+        "twitter",
+        "x",
+        "instagram",
+        "reddit",
+        "twitch",
+        "bilibili",
+        "download",
+        "youtube-downloader",
+        "twitter-downloader",
+    ],
     classifiers=[
         "Programming Language :: Python :: 3.11",
         "License :: OSI Approved :: MIT License",

@@ -104,53 +104,41 @@ class Cobalt:
         self, api_instance: str = None, api_key: str = None, headers: dict = None
     ) -> None:
         """
-        Creates a new Cobalt object.
+        Initializes a new Cobalt object.
 
         Parameters:
         - api_instance (str, optional): The URL of the Cobalt API instance to use. Defaults to https://dwnld.nichind.dev.
-        - api_key (str, optional): The API key to use for the Cobalt API instance. Defaults to "".
-        - headers (dict, optional): The headers to use for requests to the Cobalt API instance. Defaults to a dictionary with Accept, Content-Type, and Authorization headers.
+        - api_key (str, optional): The API key for the Cobalt API instance. Defaults to "".
+        - headers (dict, optional): Custom headers for requests. Defaults to a dictionary with necessary headers.
 
         Environment variables:
-        - COBALT_API_URL: The URL of the Cobalt API instance to use.
-        - COBALT_API_KEY: The API key to use for the Cobalt API instance.
-        - COBALT_USER_AGENT: The User-Agent header to use for requests to the Cobalt API instance. Defaults to "pybalt/python".
+        - COBALT_API_URL: The URL of the Cobalt API instance.
+        - COBALT_API_KEY: The API key for the Cobalt API instance.
+        - COBALT_USER_AGENT: The User-Agent header for requests. Defaults to "pybalt/python".
         """
         load_dotenv()
-        if api_instance is None:
-            if getenv("COBALT_API_URL"):
-                api_instance = getenv("COBALT_API_URL")
-        if api_key is None:
-            if getenv("COBALT_API_KEY"):
-                api_key = getenv("COBALT_API_KEY")
+
         self.api_instance = (
-            f"""{'https://' if "http" not in api_instance else ""}{api_instance}"""
-            if api_instance
-            else None
+            api_instance or getenv("COBALT_API_URL") or "https://dwnld.nichind.dev"
         )
-        self.api_key = api_key if api_key else ""
-        if not self.api_instance:
-            print(
-                "Couldn't find cobalt instance url. Your experience may/will be limited. Please set COBALT_API_URL environment variable or pass it as an argument (-i 'url') / constuctor (defers on what version you use, cli or as module)."
-            )
-            self.api_instance = "https://dwnld.nichind.dev"
-        if self.api_instance == "https://dwnld.nichind.dev" and not self.api_key:
+        self.api_key = api_key or getenv("COBALT_API_KEY") or ""
+
+        if not self.api_key and self.api_instance == "https://dwnld.nichind.dev":
             self.api_key = "b05007aa-bb63-4267-a66e-78f8e10bf9bf"
-        self.headers = headers
-        if self.headers is None:
-            self.headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "Authorization": f"Api-Key {self.api_key}" if self.api_key else "",
-            }
-        if "User-Agent" not in self.headers.keys():
-            self.headers["User-Agent"] = (
-                getenv("COBALT_USER_AGENT")
-                if getenv("COBALT_USER_AGENT")
-                else "pybalt/python"
-            )
-        if self.headers["Authorization"] == "":
-            del self.headers["Authorization"]
+
+        self.headers = headers or {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Api-Key {self.api_key}" if self.api_key else "",
+        }
+
+        self.headers.setdefault(
+            "User-Agent", getenv("COBALT_USER_AGENT") or "pybalt/python"
+        )
+
+        if not self.api_key:
+            self.headers.pop("Authorization", None)
+
         self.skipped_instances = []
 
     async def get_instance(self):
@@ -162,7 +150,7 @@ class Cobalt:
         It then picks the one with highest score and checks if it is already in the list of skipped instances.
         If it is, it picks the next one.
         """
-        headers = self.headers
+        headers = self.headers.copy()
         headers["User-Agent"] = (
             "https://github.com/nichind/pybalt - Cobalt CLI & Python module. (aiohttp Client)"
         )
@@ -170,31 +158,27 @@ class Cobalt:
             async with cs.get(
                 "https://instances.cobalt.best/api/instances.json"
             ) as resp:
-                instances: list = await resp.json()
+                instances = await resp.json()
                 good_instances = []
                 for instance in instances:
-                    dead_services = 0
-                    if (
-                        int(instance["version"].split(".")[0]) < 10
-                        or instance["trust"] != 1
-                    ):
+                    if int(instance["version"].split(".")[0]) < 10:
                         continue
-                    for service, status in instance["services"].items():
-                        if not status:
-                            dead_services += 1
+                    dead_services = sum(
+                        1
+                        for service, status in instance["services"].items()
+                        if not status
+                    )
                     if dead_services > 7:
                         continue
                     good_instances.append(instance)
-                while True:
-                    print(f"Found {len(good_instances)} good instances.")
+                while good_instances:
                     good_instances.sort(
                         key=lambda instance: instance["score"], reverse=True
                     )
+                    next_instance = good_instances.pop(0)
                     try:
                         async with cs.get(
-                            good_instances[0]["protocol"]
-                            + "://"
-                            + good_instances[0]["api"]
+                            next_instance["protocol"] + "://" + next_instance["api"]
                         ) as resp:
                             json = await resp.json()
                             if json["cobalt"]["url"] in self.skipped_instances:
@@ -202,7 +186,7 @@ class Cobalt:
                             self.api_instance = json["cobalt"]["url"]
                             break
                     except Exception:
-                        good_instances.pop(0)
+                        pass
         return self.api_instance
 
     async def get(
@@ -281,7 +265,6 @@ class Cobalt:
                 }
                 if audio_format:
                     json["audioFormat"] = audio_format
-                # print(json)
                 async with cs.post(self.api_instance, json=json) as resp:
                     json = await resp.json()
                     if "error" in json:
@@ -291,6 +274,19 @@ class Cobalt:
                                     f'{url} is invalid - {json["error"]["code"]}'
                                 )
                             case "content":
+                                if (
+                                    json["error"]["code"].split(".")[-1]
+                                    == "unavailable"
+                                ):
+                                    await self.get_instance()
+                                    return await self.get(
+                                        url,
+                                        quality,
+                                        download_mode,
+                                        filename_style,
+                                        audio_format,
+                                        youtube_video_codec,
+                                    )
                                 raise exceptions.ContentError(
                                     f'cannot get content of {url} - {json["error"]["code"]}'
                                 )
@@ -326,7 +322,7 @@ class Cobalt:
                                     download_mode,
                                     filename_style,
                                     audio_format,
-                                    youtube_video_codec,
+                                    # print(json)  youtube_video_codec,
                                 )
                             case "fetch":
                                 self.skipped_instances.append(self.api_instance)
@@ -402,9 +398,11 @@ class Cobalt:
 
             playlist = Playlist(url)
             for i, item_url in enumerate(playlist.video_urls):
-                if url.split(".")[0].endswith("music"):
-                    item_url.replace("www", "music")
+                if "music." in url:
+                    item_url = item_url.replace("www", "music")
                 print(f"[{i + 1}/{len(playlist.video_urls)}] {item_url}")
+                item_url.replace("https://", "").replace("http://", "")
+                item_url[: item_url.index("/")]
                 await self.download(
                     item_url,
                     quality=quality,
