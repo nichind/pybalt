@@ -13,6 +13,55 @@ from re import findall
 from importlib.metadata import version, PackageNotFoundError
 
 
+class Translator:
+    def __init__(self, language: str = "en") -> None:
+        """
+        Initializes a new Translator object with the specified language.
+
+        Parameters:
+        - language (str, optional): The language to use for translations. Defaults to the system language or "en".
+        """
+        self.language = getenv("LANG")[:2] or language
+
+    def translate(self, key: str, locale: Literal["en", "ru"] = None) -> str:
+        """
+        Returns the translation of the given key in the given locale.
+
+        If the given locale does not exist, the English translation is returned.
+
+        If the given key does not exist in the given locale, the given key is returned.
+
+        :param key: The key to translate
+        :param locale: The locale to translate into, default is "en" if not set
+        :return: The translated key
+        """
+        locale = locale or self.language
+        file = path.join(path.dirname(__file__), "locales", f"{locale}.txt")
+        if not path.exists(file):
+            if locale.upper() != "EN":
+                return self.translate_string(key, "EN")
+            return key
+        with open(file) as f:
+            for line in f.readlines():
+                if "=" in line and line.split("=")[0].strip().upper() == key.upper():
+                    translated = (
+                        line[line.index("=") + 1 :]
+                        .replace("\\n", "\n")
+                        .replace("\\t", "\t")
+                        .replace("\\r", "\r")
+                    )
+                    while translated.endswith("\n"):
+                        translated = translated[:-1]
+                    return translated
+            if locale.upper() != "EN":
+                return self.translate_string(key, "EN")
+            return key
+
+
+translator = Translator()
+tl = translator.translate
+
+
 async def check_updates() -> bool:
     """
     Checks for updates of pybalt by comparing the current version to the latest version from pypi.org
@@ -28,13 +77,15 @@ async def check_updates() -> bool:
                 last_version = data["info"]["version"]
         if last_version != current_version:
             print(
-                f"pybalt {last_version} is avaliable (current: {current_version}). Update with pip install pyeasypay -U"
+                tl("UPDATE_AVALIABLE").format(
+                    last_version=last_version, current_version=current_version
+                )
             )
             return False
     except PackageNotFoundError:
-        print("pybalt is not installed. Running from dev?")
+        print(tl("PACKAGE_NOT_FOUND"))
     except Exception as e:
-        print(f"Failed to check for updates: {e}")
+        print(tl("UPDATE_CHECK_FAIL").format(error=e))
     return True
 
 
@@ -61,7 +112,7 @@ class File:
         - downloaded (bool): Whether the file has been downloaded.
         - path (str): The path where the file is saved.
         """
-        self.cobalt = cobalt if cobalt else Cobalt()
+        self.cobalt = cobalt or Cobalt()
         self.status = status
         self.url = url
         self.tunnel = tunnel
@@ -124,7 +175,7 @@ class Cobalt:
         self.api_key = api_key or getenv("COBALT_API_KEY") or ""
 
         if not self.api_key and self.api_instance == "https://dwnld.nichind.dev":
-            self.api_key = "b05007aa-bb63-4267-a66e-78f8e10bf9bf"
+            self.api_key = "b05007aa-bb63-4267-a66e-78f8e10bf9bf"  # Default API key for dwnld.nichind.dev
 
         self.headers = headers or {
             "Accept": "application/json",
@@ -151,9 +202,6 @@ class Cobalt:
         If it is, it picks the next one.
         """
         headers = self.headers.copy()
-        headers["User-Agent"] = (
-            "https://github.com/nichind/pybalt - Cobalt CLI & Python module. (aiohttp Client)"
-        )
         async with ClientSession(headers=headers) as cs:
             async with cs.get(
                 "https://instances.cobalt.best/api/instances.json"
@@ -271,7 +319,9 @@ class Cobalt:
                         match json["error"]["code"].split(".")[2]:
                             case "link":
                                 raise exceptions.LinkError(
-                                    f'{url} is invalid - {json["error"]["code"]}'
+                                    tl("INVALID_URL").format(
+                                        error=json["error"]["code"], url=url
+                                    )
                                 )
                             case "content":
                                 if (
@@ -288,11 +338,15 @@ class Cobalt:
                                         youtube_video_codec,
                                     )
                                 raise exceptions.ContentError(
-                                    f'cannot get content of {url} - {json["error"]["code"]}'
+                                    tl("CONTENT_GET_ERROR").format(
+                                        error=json["error"]["code"], url=url
+                                    )
                                 )
                             case "invalid_body":
                                 raise exceptions.InvalidBody(
-                                    f'Request body is invalid - {json["error"]["code"]}'
+                                    tl("INVALID_BODY").format(
+                                        error=json["error"]["code"]
+                                    )
                                 )
                             case "auth":
                                 if (
@@ -311,7 +365,7 @@ class Cobalt:
                                         youtube_video_codec,
                                     )
                                 raise exceptions.AuthError(
-                                    f'Authentication failed - {json["error"]["code"]}'
+                                    tl("AUTH_ERROR").format(error=json["error"]["code"])
                                 )
                             case "youtube":
                                 self.skipped_instances.append(self.api_instance)
@@ -327,7 +381,10 @@ class Cobalt:
                             case "fetch":
                                 self.skipped_instances.append(self.api_instance)
                                 print(
-                                    f'Fetch {url if len(url) < 40 else url[:40] + "..."} using {self.api_instance} failed, trying next instance...\r',
+                                    tl("FETCH_ERROR").format(
+                                        url=url if len(url) < 40 else url[:40] + "...",
+                                        api_instance=self.api_instance,
+                                    ),
                                     end="",
                                 )
                                 await self.get_instance()
@@ -351,7 +408,7 @@ class Cobalt:
                     )
             except client_exceptions.ClientConnectorError:
                 raise exceptions.BadInstance(
-                    f"Cannot reach instance {self.api_instance}"
+                    tl("CANNOT_REACH").format(api_instance=self.api_instance)
                 )
 
     async def download(
@@ -528,3 +585,6 @@ class Cobalt:
 
 
 Pybalt = Cobalt
+cobalt = Cobalt()
+download = cobalt.download
+get = cobalt.get

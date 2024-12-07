@@ -1,0 +1,11 @@
+/*************  ✨ Codeium Command 🌟  *************/
+UPDATE_AVALIABLE=pybalt {last_version} is avaliable (current: {current_version}). Update with pip install pybalt -U
+PACKAGE_NOT_FOUND=pybalt is not installed. Ignore if running from dev
+UPDATE_CHECK_FAIL=Failed to check for updates: {error}
+INVALID_URL={url} is invalid - {error}
+CONTENT_GET_ERROR=Failed to get content from {url} - {error}
+INVALID_BODY=Request body is invalid - {error}
+AUTH_ERROR=Authentication failed - {error}
+FETCH_ERROR=Fetch {url} using {api_instance} failed, trying next instance...\r
+CANNOT_REACH=Cannot reach instance {api_instance}
+/******  b39cf420-0a8c-4e62-b800-177d51b9f1a9  *******/
