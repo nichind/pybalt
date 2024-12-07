@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+from glob import glob
 
 
 def readme():
@@ -8,7 +9,7 @@ def readme():
 
 setup(
     name="pybalt",
-    version="2024.12.4",
+    version="2024.12.5",
     author="nichind",
     author_email="nichinddev@gmail.com",
     description="Download mediafiles from YouTube, Twitter (X), Instagram, Reddit & more. CLI & python module for @imputnet's cobalt processing instance api.",
@@ -16,6 +17,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/nichind/pybalt",
     packages=find_packages(),
+    package_data={"pybalt": ["locales/*.txt"]},
     install_requires=[
         "aiohttp",
         "aiofiles",
@@ -55,3 +57,4 @@ setup(
         ],
     },
 )
+
