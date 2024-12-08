@@ -193,6 +193,9 @@ class Cobalt:
 
         self.skipped_instances = []
 
+    def download_callback(self, *args, **kwargs):
+        """You can replace this function with your own callback function, called every ~2 seconds when downloading a file."""
+
     async def get_instance(self):
         """
         Finds a good instance of Cobalt API and changes the API instance of this object to it.
@@ -498,6 +501,7 @@ class Cobalt:
         async with ClientSession(headers=self.headers) as session:
             async with aopen(path.join(path_folder, filename), "wb") as f:
                 try:
+                    max_print_length, _ = 0, 0
                     progress_chars = ["⢎⡰", "⢎⡡", "⢎⡑", "⢎⠱", "⠎⡱", "⢊⡱", "⢌⡱", "⢆⡱"]
                     progress_index = 0
                     total_size = 0
@@ -543,6 +547,13 @@ class Cobalt:
                                     * (max_print_length - len(print_line + " " + info)),
                                     f"\033[97m{info[:-2]}\033[94m{info[-2:]}\033[0m",
                                     end="",
+                                )
+                                self.download_callback(
+                                    total_size=total_size,
+                                    filename=filename,
+                                    path_folder=path_folder,
+                                    start_time=start_time,
+                                    speed_display=speed,
                                 )
                     elapsed_time = time() - start_time
                     info = f"[{round(total_size / 1024 / 1024, 2)}Mb \u2015 {round(elapsed_time, 2)}s] \u2713"
