@@ -451,6 +451,7 @@ class Cobalt:
         Raises:
         - BadInstance: If the specified instance cannot be reached.
         """
+        max_print_length, _ = 0, 0
         if playlist or len(findall("[&?]list=([^&]+)", url)) > 0:
             if type(playlist) is str:
                 url = playlist
@@ -501,7 +502,6 @@ class Cobalt:
         async with ClientSession(headers=self.headers) as session:
             async with aopen(path.join(path_folder, filename), "wb") as f:
                 try:
-                    max_print_length, _ = 0, 0
                     progress_chars = ["⢎⡰", "⢎⡡", "⢎⡑", "⢎⠱", "⠎⡱", "⢊⡱", "⢌⡱", "⢆⡱"]
                     progress_index = 0
                     total_size = 0
@@ -509,6 +509,7 @@ class Cobalt:
                     last_update = 0
                     last_speed_update = 0
                     downloaded_since_last = 0
+                    max_print_length, _ = get_terminal_size()
                     async with session.get(file.tunnel) as response:
                         print(f"\033[97m{filename}\033[0m", flush=True)
                         result_path = path.join(path_folder, f'"{filename}"')
