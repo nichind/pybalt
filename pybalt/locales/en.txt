@@ -26,3 +26,5 @@ UPDATE_ARGUMENT=Check for updates
 VERSION=pybalt {}
 NO_URL_PROVIDED=No URLs provided\nExpected media url, path to file with list of URLs or youtube playlist link\nExample: cobalt 'https://youtube.com/watch?...' -s
 SUCCESS=\033[92mEverything Done!\033[0m Thanks for using pybalt! Leave a star on GitHub: https://github.com/nichind/pybalt
+ZERO_BYTE_FILE={instance} returned 0 bytes, skipping and trying next instance
+ZERO_BYTE_ALL=All instances returned 0 bytes, aborting. Please try again later, that's an issue with cobalt, not pybalt.

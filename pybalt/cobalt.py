@@ -213,7 +213,10 @@ class Cobalt:
                 instances = await resp.json()
                 good_instances = []
                 for instance in instances:
-                    if int(instance["version"].split(".")[0]) < 10:
+                    if (
+                        "version" not in instance
+                        or int(instance["version"].split(".")[0]) < 10
+                    ):
                         continue
                     dead_services = sum(
                         1
@@ -317,7 +320,11 @@ class Cobalt:
                 }
                 if audio_format:
                     json["audioFormat"] = audio_format
-                async with cs.post(self.api_instance, json=json) as resp:
+                async with cs.post(
+                    ("https://" if "http" not in self.api_instance else "")
+                    + self.api_instance,
+                    json=json, timeout=12,
+                ) as resp:
                     json = await resp.json()
                     if "error" in json:
                         match json["error"]["code"].split(".")[2]:
@@ -384,6 +391,7 @@ class Cobalt:
                                 )
                             case "fetch":
                                 self.skipped_instances.append(self.api_instance)
+                                print(json)
                                 print(
                                     tl("FETCH_ERROR").format(
                                         url=url if len(url) < 40 else url[:40] + "...",
@@ -509,9 +517,9 @@ class Cobalt:
                     last_update = 0
                     last_speed_update = 0
                     downloaded_since_last = 0
+                    print(f"\033[97m{filename}\033[0m", flush=True)
                     max_print_length, _ = get_terminal_size()
                     async with session.get(file.tunnel) as response:
-                        print(f"\033[97m{filename}\033[0m", flush=True)
                         result_path = path.join(path_folder, f'"{filename}"')
                         while True:
                             chunk = await response.content.read(1024 * 1024)
@@ -559,6 +567,27 @@ class Cobalt:
                     elapsed_time = time() - start_time
                     info = f"[{round(total_size / 1024 / 1024, 2)}Mb \u2015 {round(elapsed_time, 2)}s] \u2713"
                     print_line = shorten(result_path, additional_len=len(info))
+                    if total_size < 1024:
+                        instance = await self.get_instance()
+                        self.skipped_instances += [instance]
+                        print(tl("ZERO_BYTE_FILE").format(instance=instance))
+                        if len(self.skipped_instances) > 1 and self.skipped_instances[-1] == self.skipped_instances[-2]:
+                            print(tl("ZERO_BYTE_ALL"))
+                            return
+                        return await download(
+                            url,
+                            quality,
+                            filename,
+                            path_folder,
+                            download_mode,
+                            filename_style,
+                            audio_format,
+                            youtube_video_codec,
+                            playlist,
+                            file,
+                            show,
+                            play,
+                        )
                     print(
                         "\r",
                         print_line
