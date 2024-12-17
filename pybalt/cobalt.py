@@ -254,6 +254,7 @@ class Cobalt:
         filename_style: Literal["classic", "pretty", "basic", "nerdy"] = "pretty",
         audio_format: Literal["best", "mp3", "ogg", "wav", "opus"] = None,
         youtube_video_codec: Literal["vp9", "h264"] = None,
+        youtube_hls: bool = True
     ) -> File:
         """
         Retrieves a File object for the specified URL with optional quality, mode, and format settings.
@@ -317,6 +318,7 @@ class Cobalt:
                     if youtube_video_codec
                     else "h264",
                     "filenameStyle": filename_style,
+                    "youtubeHLS": youtube_hls,
                 }
                 if audio_format:
                     json["audioFormat"] = audio_format
