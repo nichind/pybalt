@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name="pybalt",
-    version="2024.12.9",
+    version="2024.12.10",
     author="nichind",
     author_email="nichinddev@gmail.com",
     description="Download mediafiles from YouTube, Twitter (X), Instagram, Reddit & more. CLI & python module for @imputnet's cobalt processing instance api.",
