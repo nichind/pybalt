@@ -1,1 +1,1 @@
-from .cobalt import *
+from .core.cobalt import Cobalt
