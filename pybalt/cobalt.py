@@ -39,7 +39,7 @@ class Translator:
         file = path.join(path.dirname(__file__), "locales", f"{locale}.txt")
         if not path.exists(file):
             if locale.upper() != "EN":
-                return self.translate_string(key, "EN")
+                return self.translate(key, "EN")
             return key
         with open(file) as f:
             for line in f.readlines():
@@ -55,7 +55,7 @@ class Translator:
                         translated = translated[:-1]
                     return translated
             if locale.upper() != "EN":
-                return self.translate_string(key, "EN")
+                return self.translate(key, "EN")
             return key
 
 
@@ -170,6 +170,7 @@ class Cobalt:
         """
         load_dotenv()
 
+        self.instances = []
         self.api_instance = (
             api_instance or getenv("COBALT_API_URL") or "https://dwnld.nichind.dev"
         )
@@ -207,41 +208,43 @@ class Cobalt:
         """
         headers = self.headers.copy()
         async with ClientSession(headers=headers) as cs:
-            async with cs.get(
-                "https://instances.cobalt.best/api/instances.json"
-            ) as resp:
-                instances = await resp.json()
-                good_instances = []
-                for instance in instances:
-                    if (
-                        "version" not in instance
-                        or int(instance["version"].split(".")[0]) < 10
-                    ):
-                        continue
-                    dead_services = sum(
-                        1
-                        for service, status in instance["services"].items()
-                        if not status
-                    )
-                    if dead_services > 7:
-                        continue
-                    good_instances.append(instance)
-                while good_instances:
-                    good_instances.sort(
-                        key=lambda instance: instance["score"], reverse=True
-                    )
-                    next_instance = good_instances.pop(0)
-                    try:
-                        async with cs.get(
-                            next_instance["protocol"] + "://" + next_instance["api"]
-                        ) as resp:
-                            json = await resp.json()
-                            if json["cobalt"]["url"] in self.skipped_instances:
-                                raise exceptions.BadInstance()
-                            self.api_instance = json["cobalt"]["url"]
-                            break
-                    except Exception:
-                        pass
+            if not self.instances or len(self.instances) == 0:
+                async with cs.get(
+                    "https://instances.cobalt.best/api/instances.json"
+                ) as resp:
+                    instances = await resp.json()
+                    good_instances = []
+                    for instance in instances:
+                        if (
+                            "version" not in instance
+                            or int(instance["version"].split(".")[0]) < 10
+                        ):
+                            continue
+                        dead_services = sum(
+                            1
+                            for service, status in instance["services"].items()
+                            if not status
+                        )
+                        if dead_services > 7:
+                            continue
+                        good_instances.append(instance)
+                        self.instances = good_instances
+            while self.instances:
+                self.instances.sort(
+                    key=lambda instance: instance["score"], reverse=True
+                )
+                next_instance = self.instances.pop(0)
+                try:
+                    async with cs.get(
+                        next_instance["protocol"] + "://" + next_instance["api"]
+                    ) as resp:
+                        json = await resp.json()
+                        if json["cobalt"]["url"] in self.skipped_instances:
+                            raise exceptions.BadInstance()
+                        self.api_instance = json["cobalt"]["url"]
+                        break
+                except Exception:
+                    pass
         return self.api_instance
 
     async def get(
@@ -367,6 +370,7 @@ class Cobalt:
                                     or json["error"]["code"].split(".")[-1]
                                     == "not_found"
                                 ):
+                                    print(1)
                                     self.skipped_instances.append(self.api_instance)
                                     await self.get_instance()
                                     return await self.get(
