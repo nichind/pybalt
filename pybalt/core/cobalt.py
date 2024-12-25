@@ -1,7 +1,7 @@
 from aiohttp import ClientSession
 from dotenv import load_dotenv
 from os import getenv
-from typing import List, Dict, Union, Unpack, TypedDict
+from typing import List, Dict, Union, Unpack, TypedDict, Literal, LiteralString, Self
 from .misc import Translator
 from .client import RequestClient
 from .constants import (
@@ -10,28 +10,62 @@ from .constants import (
     DEFAULT_UA,
     DEFAULT_TIMEOUT,
 )
+from . import exceptions
+from time import time
+import re
 
 
-class CobaltParameters:
-    instance = getenv("COBALT_API_URL", FALLBACK_INSTANCE)
-    api_key = getenv(
-        "COBALT_API_KEY",
-        FALLBACK_INSTANCE_API_KEY if instance == FALLBACK_INSTANCE else None,
-    )
-    user_agent = getenv("COBALT_USER_AGENT", DEFAULT_UA)
-    timeout = getenv("COBALT_TIMEOUT", DEFAULT_TIMEOUT)
-    translator = Translator()
-    proxy = getenv("COBALT_PROXY", None)
-    session = None
-    headers = None
-
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
+class _CobaltParameters(TypedDict, total=False):
+    instance: str
+    api_key: str
+    user_agent: str
+    timeout: int
+    translator: Translator = Translator()
+    proxy: str
+    session: ClientSession
+    headers: Dict[str, str]
 
 
 class _CobaltBodyOptions(TypedDict, total=False):
-    api_key: str
+    url: str
+    videoQuality: Literal[
+        "max", "144", "240", "360", "480", "720", "1080", "1440", "2160", "4320"
+    ]
+    audioFormat: Literal["best", "mp3", "ogg", "wav", "opus"]
+    audioBitrate: Literal["320", "256", "128", "96", "64", "8"]
+    filenameStyle: Literal["classic", "pretty", "basic", "nerdy"]
+    downloadMode: Literal["auto", "audio", "mute"]
+    youtubeVideoCodec: Literal["h264", "av1", "vp9"]
+    youtubeDubLang: LiteralString
+    alwaysProxy: bool
+    disableMetadata: bool
+    tiktokFullAudio: bool
+    tiktokH265: bool
+    twitterGif: bool
+    youtubeHLS: bool
+
+
+class Tunnel:
+    url: str
+    instance: "Instance" = None
+    tunnel_id: str = None
+    exp: int = None
+    sig: str = None
+    iv: str = None
+    sec: str = None
+
+    def __init__(self, url: str, instance: "Instance" = None):
+        self.url = url
+        self.instance = instance
+        self.tunnel_id = re.search(r"id=([^&]+)", url).group(1) if "id=" in url else None
+        self.exp = re.search(r"exp=([^&]+)", url).group(1)[:-3] if "exp=" in url else None
+        self.sig = re.search(r"sig=([^&]+)", url).group(1) if "sig=" in url else None
+        self.iv = re.search(r"iv=([^&]+)", url).group(1) if "iv=" in url else None
+        self.sec = re.search(r"sec=([^&]+)", url).group(1) if "sec=" in url else None
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.tunnel_id}" + f", expires in {int(self.exp) - int(time())} seconds)" if self.exp and self.exp.isdigit() else ")"
+
 
 
 class Instance:
@@ -46,6 +80,7 @@ class Instance:
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        self.dump = kwargs
         if not self.url and kwargs.get("api", None):
             self.url = kwargs.get("api")
         if "http" not in self.url:
@@ -56,7 +91,7 @@ class Instance:
     async def get_instance_info(self, url: str = None):
         data = await self.parent.get(url or self.url)
         if not isinstance(data, dict):
-            raise "Failed to get instance data"
+            raise exceptions.FetchError("Failed to get instance data")
         _cobalt = data.get("cobalt", None)
         if isinstance(_cobalt, dict):
             self.version = _cobalt.get("version", None)
@@ -66,10 +101,29 @@ class Instance:
             self.services = _cobalt.get("services", None)
         return self
 
-    async def get_tunnel(self, url: str = None, **options: Unpack[_CobaltBodyOptions]):
+    async def get_tunnel(self, **body: Unpack[_CobaltBodyOptions]):
+        response = await self.parent.post(self.url, data=body)
+        if not isinstance(response, dict):
+            if "<title>Just a moment...</title>" in response:
+                raise exceptions.FailedToGetTunnel("Cloudflare is blocking requests")
+            elif ">Sorry, you have been blocked</h1>" in response:
+                raise exceptions.FailedToGetTunnel(
+                    "Site owner set that cloudflare is blocking your requests"
+                )
+            raise exceptions.FailedToGetTunnel(f"Reponse is not a dict: {response}")
+        if response.get("status", None) != "tunnel":
+            raise exceptions.FailedToGetTunnel(
+                f'Failed to get tunnel: {response.get("error", dict()).get("code", None)}'
+            )
+        if "url" not in response:
+            raise exceptions.NoUrlInTunnelResponse(
+                f"No url found in tunnel response: {response}"
+            )
+        tunnel = Tunnel(response["url"], instance=self)
+        return tunnel
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.url}, {self.version if self.version else 'unknown'}, {len(self.services) if self.services else 0} services)"    
+        return f"{self.__class__.__name__}({self.url}, {self.version if self.version else 'unknown'}, {len(self.services) if self.services else 0} services)"
 
 
 class Cobalt:
@@ -83,15 +137,28 @@ class Cobalt:
     headers: Dict[str, str] = None
     request_client: RequestClient = None
 
-    def __init__(self, params: CobaltParameters = CobaltParameters, **kwargs):
-        self.instance = params.instance
-        self.api_key = params.api_key
-        self.user_agent = params.user_agent
-        self.timeout = params.timeout
-        self.translator = params.translator
-        self.proxy = params.proxy
-        self.session = params.session
-        self.headers = params.headers
+    def __init__(self, **params: Unpack[_CobaltParameters]):
+        self.__dict__.update(params)
+        self.instance = Instance(
+            url=params.get("instance", getenv("COBALT_INSTANCE", FALLBACK_INSTANCE)),
+            parent=self,
+        )
+        self.proxy = params.get("proxy", getenv("COBALT_PROXY", None))
+        self.timeout = params.get("timeout", getenv("COBALT_TIMEOUT", DEFAULT_TIMEOUT))
+        self.user_agent = params.get(
+            "user_agent", getenv("COBALT_USER_AGENT", DEFAULT_UA)
+        )
+        self.api_key = params.get(
+            "api_key", getenv("COBALT_API_KEY", FALLBACK_INSTANCE_API_KEY)
+        )
+        self.headers = params.get(
+            "headers",
+            {
+                "User-Agent": self.user_agent,
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+        )
         self.request_client = RequestClient(
             api_key=self.api_key,
             session=self.session,
@@ -101,16 +168,21 @@ class Cobalt:
         )
         self.get = self.request_client.get
         self.post = self.request_client.post
-        self.__dict__.update(params.__dict__)
-        self.__dict__.update(kwargs)
 
     async def fetch_instances(self) -> List[Instance]:
         instances = await self.get("https://instances.cobalt.best/api/instances.json")
         if not isinstance(instances, list):
-            raise "Failed to fetch instances"
+            raise exceptions.FetchError("Failed to fetch instances")
         return [
-            Instance(parent=self, **instance, dump=instance) for instance in instances
+            Instance(parent=self, **instance) for instance in instances
         ]
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        if self.request_client.session and not self.request_client.session.closed:
+            await self.request_client.session.close()
 
     def __setattr__(self, name, value):
         if self.request_client and name in self.request_client.__dict__:

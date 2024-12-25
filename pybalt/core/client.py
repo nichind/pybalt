@@ -97,7 +97,7 @@ class RequestClient:
                     if request_type == "get"
                     else session.post(
                         url,
-                        data=kwargs.get("data"),
+                        json=kwargs.get("data"),
                         timeout=kwargs.get("timeout", self.timeout or DEFAULT_TIMEOUT),
                     )
                 ) as response:
