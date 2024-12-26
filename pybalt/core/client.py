@@ -1,8 +1,25 @@
 from aiohttp import ClientSession
 from .misc import Translator
-from typing import Literal, Union, Dict
-from asyncio import sleep
+from typing import Literal, Union, Dict, Callable, Coroutine
+from asyncio import sleep, iscoroutinefunction
 from .constants import DEFAULT_TIMEOUT
+from time import time
+from os import path, getenv, makedirs
+
+
+class Response:
+    text = None
+    json = None
+    headers = None
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+    def __repr__(self):
+        return self.text if not self.json else self.json
+
+    def __str__(self):
+        return self.text
 
 
 class RequestClient:
@@ -20,11 +37,10 @@ class RequestClient:
 
     async def request(
         self, url: str, request_type: Literal["get", "post"] = "get", **kwargs
-    ) -> Union[str, Dict[str, str]]:
+    ) -> Response:
         retries = kwargs.get("retries", 0)
         if retries > 5:
             raise ""
-
         if self.proxy or kwargs.get("proxy", False):
             import requests
 
@@ -66,12 +82,15 @@ class RequestClient:
                 elif "REMOTE_ADDR = " in response.text:
                     kwargs["retries"] = retries + 1
                     return await self.request(url, request_type, **kwargs)
-                if kwargs.get("text", False):
-                    return response.text
+                _response = Response(
+                    headers=response.headers,
+                )
                 try:
-                    return response.json()
+                    _response.text = response.text
+                    _response.json = response.json()
                 except Exception:
-                    return response.text
+                    ...
+                return _response
             except requests.exceptions.ProxyError as exc:
                 raise "prx"
         else:
@@ -108,12 +127,13 @@ class RequestClient:
                         return await self.request(url, request_type, **kwargs)
                     elif response.status == 404:
                         raise "404"
+                    _response = Response(headers=response.headers)
                     try:
-                        if kwargs.get("text", False):
-                            return await response.text()
-                        return await response.json()
+                        _response.text = await response.text()
+                        _response.json = await response.json()
                     except Exception:
-                        return await response.text()
+                        ...
+                    return _response
                 kwargs["retries"] = retries + 1
                 await sleep(1)
                 return await self.request(url, request_type, **kwargs)
@@ -121,8 +141,60 @@ class RequestClient:
                 if kwargs.get("close", True):
                     await session.close()
 
-    async def get(self, url: str, **kwargs) -> Union[str, Dict[str, str]]:
-        return await self.request(url, "get", **kwargs)
+    async def get(self, url: str, **kwargs) -> Response:
+        response = await self.request(url, "get", **kwargs)
+        if kwargs.get("text", False) is True:
+            return response.text
+        return response.json if response.json else response.text
 
-    async def post(self, url: str, **kwargs) -> Union[str, Dict[str, str]]:
-        return await self.request(url, "post", **kwargs)
+    async def post(self, url: str, **kwargs) -> Response:
+        response = await self.request(url, "post", **kwargs)
+        if kwargs.get("text", False) is True:
+            return response.text
+        return response.json if response.json else response.text
+
+    async def download_from_url(
+        self,
+        url: str,
+        folder_path: str = None,
+        status_callback: Callable | Coroutine = None,
+        done_callback: Callable | Coroutine = None,
+        status_parent=None,
+        **kwargs,
+    ):
+        start_at = time()
+        total_size = 0
+        destination_folder = folder_path or path.join(path.expanduser("~"), "Downloads")
+        if not path.exists(destination_folder):
+            makedirs(destination_folder)
+        session = (
+            ClientSession(
+                headers=kwargs.get("headers", self.headers),
+                timeout=kwargs.get("timeout", self.timeout or DEFAULT_TIMEOUT),
+            )
+            if not self.session or self.session.closed
+            else self.session
+        )
+        async with session.get(url) as resp:
+            while True:
+                chunk = await resp.content.read(1024)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if status_callback:
+                    if iscoroutinefunction(status_callback):
+                        await status_callback(total_size, start_at, status_parent)
+                    else:
+                        status_callback(total_size, start_at, status_parent)
+                with open(destination_folder, "ab") as f:
+                    f.write(chunk)
+        if done_callback:
+            if iscoroutinefunction(done_callback):
+                await done_callback(total_size, start_at, status_parent)
+            else:
+                done_callback(total_size, start_at, status_parent)
+
+    def __setattr__(self, name, value):
+        self.__dict__[name] = value
+        if name in self.headers:
+            self.headers[name] = value

@@ -1,1 +1,1 @@
-from .core.cobalt import Cobalt
+from .core.cobalt import Cobalt, Instance

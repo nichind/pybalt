@@ -57,15 +57,23 @@ class Tunnel:
     def __init__(self, url: str, instance: "Instance" = None):
         self.url = url
         self.instance = instance
-        self.tunnel_id = re.search(r"id=([^&]+)", url).group(1) if "id=" in url else None
-        self.exp = re.search(r"exp=([^&]+)", url).group(1)[:-3] if "exp=" in url else None
+        self.tunnel_id = (
+            re.search(r"id=([^&]+)", url).group(1) if "id=" in url else None
+        )
+        self.exp = (
+            re.search(r"exp=([^&]+)", url).group(1)[:-3] if "exp=" in url else None
+        )
         self.sig = re.search(r"sig=([^&]+)", url).group(1) if "sig=" in url else None
         self.iv = re.search(r"iv=([^&]+)", url).group(1) if "iv=" in url else None
         self.sec = re.search(r"sec=([^&]+)", url).group(1) if "sec=" in url else None
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.tunnel_id}" + f", expires in {int(self.exp) - int(time())} seconds)" if self.exp and self.exp.isdigit() else ")"
-
+        return (
+            f"{self.__class__.__name__}({self.tunnel_id}"
+            + f", expires in {int(self.exp) - int(time())} seconds)"
+            if self.exp and self.exp.isdigit()
+            else ")"
+        )
 
 
 class Instance:
@@ -105,19 +113,23 @@ class Instance:
         response = await self.parent.post(self.url, data=body)
         if not isinstance(response, dict):
             if "<title>Just a moment...</title>" in response:
-                raise exceptions.FailedToGetTunnel("Cloudflare is blocking requests")
+                raise exceptions.FailedToGetTunnel(
+                    f"{self.url}: Cloudflare is blocking requests"
+                )
             elif ">Sorry, you have been blocked</h1>" in response:
                 raise exceptions.FailedToGetTunnel(
-                    "Site owner set that cloudflare is blocking your requests"
+                    f"{self.url}: Site owner set that cloudflare is blocking your requests"
                 )
-            raise exceptions.FailedToGetTunnel(f"Reponse is not a dict: {response}")
+            raise exceptions.FailedToGetTunnel(
+                f"{self.url}: Reponse is not a dict: {response}"
+            )
         if response.get("status", None) != "tunnel":
             raise exceptions.FailedToGetTunnel(
-                f'Failed to get tunnel: {response.get("error", dict()).get("code", None)}'
+                f'{self.url}: Failed to get tunnel: {response.get("error", dict()).get("code", None)}'
             )
         if "url" not in response:
             raise exceptions.NoUrlInTunnelResponse(
-                f"No url found in tunnel response: {response}"
+                f"{self.url}: No url found in tunnel response: {response}"
             )
         tunnel = Tunnel(response["url"], instance=self)
         return tunnel
@@ -128,6 +140,7 @@ class Instance:
 
 class Cobalt:
     instance: Union[Instance, str] = None
+    fallback_instance: Union[Instance, str]
     api_key: str = None
     user_agent: str = None
     timeout: int = None
@@ -136,12 +149,16 @@ class Cobalt:
     session: ClientSession = None
     headers: Dict[str, str] = None
     request_client: RequestClient = None
+    solve_turnstile = True
 
     def __init__(self, **params: Unpack[_CobaltParameters]):
         self.__dict__.update(params)
         self.instance = Instance(
             url=params.get("instance", getenv("COBALT_INSTANCE", FALLBACK_INSTANCE)),
             parent=self,
+        )
+        self.fallback_instance = Instance(
+            url=FALLBACK_INSTANCE, api_key=FALLBACK_INSTANCE_API_KEY, parent=self
         )
         self.proxy = params.get("proxy", getenv("COBALT_PROXY", None))
         self.timeout = params.get("timeout", getenv("COBALT_TIMEOUT", DEFAULT_TIMEOUT))
@@ -165,17 +182,21 @@ class Cobalt:
             headers=self.headers,
             timeout=self.timeout,
             proxy=self.proxy,
+            user_agent=self.user_agent,
         )
         self.get = self.request_client.get
         self.post = self.request_client.post
 
     async def fetch_instances(self) -> List[Instance]:
-        instances = await self.get("https://instances.cobalt.best/api/instances.json")
-        if not isinstance(instances, list):
-            raise exceptions.FetchError("Failed to fetch instances")
-        return [
-            Instance(parent=self, **instance) for instance in instances
-        ]
+        try:
+            instances = await self.get(
+                "https://instances.cobalt.best/api/instances.json"
+            )
+            if not isinstance(instances, list):
+                raise exceptions.FetchError("Failed to fetch instances")
+            return [Instance(parent=self, **instance) for instance in instances]
+        except Exception as exc:
+            raise exceptions.FetchError(f"Failed to fetch instances: {exc}")
 
     async def __aenter__(self):
         return self
@@ -187,10 +208,17 @@ class Cobalt:
     def __setattr__(self, name, value):
         if self.request_client and name in self.request_client.__dict__:
             self.request_client.__dict__[name] = value
+        if isinstance(self.instance, Instance) and name in self.instance.__dict__:
+            self.instance.__dict__[name] = value
         self.__dict__[name] = value
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.__dict__})"
+
+
+class Downloader:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
 
 load_dotenv()
