@@ -6,6 +6,7 @@ from .constants import DEFAULT_TIMEOUT
 from time import time
 from os import path, getenv, makedirs
 from . import exceptions
+from aiofiles import open as aopen
 
 
 class Response:
@@ -26,6 +27,7 @@ class Response:
 class _DownloadOptions(TypedDict, total=False):
     url: str
     folder_path: str
+    filename: str
     status_callback: Callable | Coroutine
     done_callback: Callable | Coroutine
     status_parent: str
@@ -183,22 +185,30 @@ class RequestClient:
             options.get("url"),
             timeout=options.get("timeout", self.timeout or DEFAULT_TIMEOUT),
         ) as resp:
-            while True:
-                chunk = await resp.content.read(1024)
-                if not chunk:
-                    break
-                total_size += len(chunk)
-                if options.get("status_callback", None):
-                    if iscoroutinefunction(options.get("status_callback")):
-                        await (options.get("status_callback"))(
-                            total_size, start_at, options.get("status_parent", None)
-                        )
-                    else:
-                        (options.get("status_callback"))(
-                            total_size, start_at, options.get("status_parent", None)
-                        )
-                with open(path.join(destination_folder), "ab") as f:
-                    f.write(chunk)
+            file_path = path.join(
+                    destination_folder,
+                    options.get(
+                        "filename",
+                        (resp.headers.get("Content-Disposition"))
+                        .split('filename="')[1].split('"')[0],
+                    ),
+            )
+            async with aopen(file_path, "wb") as f:
+                while True:
+                    chunk = await resp.content.read(1024)
+                    if not chunk:
+                        break
+                    await f.write(chunk)
+                    total_size += len(chunk)
+                    if options.get("status_callback", None):
+                        if iscoroutinefunction(options.get("status_callback")):
+                            await (options.get("status_callback"))(
+                                total_size, start_at, options.get("status_parent", None)
+                            )
+                        else:
+                            (options.get("status_callback"))(
+                                total_size, start_at, options.get("status_parent", None)
+                            )
         if options.get("done_callback", None):
             if iscoroutinefunction(options.get("done_callback")):
                 await (options.get("done_callback"))(
@@ -208,6 +218,7 @@ class RequestClient:
                 (options.get("done_callback"))(
                     total_size, start_at, options.get("status_parent", None)
                 )
+        await session.close()
         return
 
     def __setattr__(self, name, value):

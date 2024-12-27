@@ -14,7 +14,7 @@ from typing import (
     Coroutine,
 )
 from .misc import Translator
-from .client import RequestClient
+from .client import RequestClient, _DownloadOptions
 from .constants import (
     FALLBACK_INSTANCE,
     FALLBACK_INSTANCE_API_KEY,
@@ -64,7 +64,6 @@ class Tunnel:
     sig: str = None
     iv: str = None
     sec: str = None
-    download: Coroutine = None
 
     def __init__(self, url: str, instance: "Instance" = None):
         self.url = url
@@ -78,11 +77,11 @@ class Tunnel:
         self.sig = re.search(r"sig=([^&]+)", url).group(1) if "sig=" in url else None
         self.iv = re.search(r"iv=([^&]+)", url).group(1) if "iv=" in url else None
         self.sec = re.search(r"sec=([^&]+)", url).group(1) if "sec=" in url else None
-        self.download = (
-            lambda **options: self.instance.parent.request_client.download_from_url(
-                url=url, **options
-            )
-        )
+    
+    async def download(self, **body: Unpack[_DownloadOptions]):
+        if "url" in body:
+            self.url = body["url"]
+        return await self.instance.parent.request_client.download_from_url(url=self.url, **body)
 
     def __repr__(self):
         return (
