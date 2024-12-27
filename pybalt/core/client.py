@@ -187,12 +187,13 @@ class RequestClient:
                 timeout=options.get("timeout", self.timeout or DEFAULT_TIMEOUT),
             ) as resp:
                 file_path = path.join(
-                        destination_folder,
-                        options.get(
-                            "filename",
-                            (resp.headers.get("Content-Disposition"))
-                            .split('filename="')[1].split('"')[0],
-                        ),
+                    destination_folder,
+                    options.get(
+                        "filename",
+                        (resp.headers.get("Content-Disposition"))
+                        .split('filename="')[1]
+                        .split('"')[0],
+                    ),
                 )
                 async with aopen(file_path, "wb") as f:
                     while True:
@@ -204,11 +205,15 @@ class RequestClient:
                         if options.get("status_callback", None):
                             if iscoroutinefunction(options.get("status_callback")):
                                 await (options.get("status_callback"))(
-                                    total_size, start_at, options.get("status_parent", None)
+                                    total_size,
+                                    start_at,
+                                    options.get("status_parent", None),
                                 )
                             else:
                                 (options.get("status_callback"))(
-                                    total_size, start_at, options.get("status_parent", None)
+                                    total_size,
+                                    start_at,
+                                    options.get("status_parent", None),
                                 )
             if options.get("done_callback", None):
                 if iscoroutinefunction(options.get("done_callback")):

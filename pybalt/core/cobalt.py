@@ -78,11 +78,13 @@ class Tunnel:
         self.sig = re.search(r"sig=([^&]+)", url).group(1) if "sig=" in url else None
         self.iv = re.search(r"iv=([^&]+)", url).group(1) if "iv=" in url else None
         self.sec = re.search(r"sec=([^&]+)", url).group(1) if "sec=" in url else None
-    
+
     async def download(self, **body: Unpack[_DownloadOptions]):
         if "url" in body:
             self.url = body["url"]
-        return await self.instance.parent.request_client.download_from_url(url=self.url, **body)
+        return await self.instance.parent.request_client.download_from_url(
+            url=self.url, **body
+        )
 
     def __repr__(self):
         return (
@@ -205,7 +207,11 @@ class Cobalt:
         )
         self.get = self.request_client.get
         self.post = self.request_client.post
-        self.debug = (lambda *args: print(*args)) if params.get("debug", getenv("COBALT_DEBUG", False)) else lambda *args: ...
+        self.debug = (
+            (lambda *args: print(*args))
+            if params.get("debug", getenv("COBALT_DEBUG", False))
+            else lambda *args: ...
+        )
 
     async def fetch_instances(self) -> List[Instance]:
         try:
@@ -214,7 +220,9 @@ class Cobalt:
             )
             if not isinstance(instances, list):
                 raise exceptions.FetchError("Failed to fetch instances")
-            self.instances = [Instance(parent=self, **instance) for instance in instances] + [self.fallback_instance]
+            self.instances = [
+                Instance(parent=self, **instance) for instance in instances
+            ] + [self.fallback_instance]
             return self.instances
         except Exception as exc:
             raise exceptions.FetchError(f"Failed to fetch instances: {exc}")
@@ -228,8 +236,10 @@ class Cobalt:
                 return await tunnel.download(**body)
             except Exception as exc:
                 self.debug(exc)
-        raise exceptions.AllInstancesFailed(f"Failed to download {url} using any of {len(self.instances)} instances...")
-        
+        raise exceptions.AllInstancesFailed(
+            f"Failed to download {url} using any of {len(self.instances)} instances..."
+        )
+
     async def __aenter__(self):
         return self
 
