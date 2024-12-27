@@ -1,7 +1,18 @@
 from aiohttp import ClientSession
 from dotenv import load_dotenv
 from os import getenv
-from typing import List, Dict, Union, Unpack, TypedDict, Literal, LiteralString, Self
+from typing import (
+    List,
+    Dict,
+    Union,
+    Unpack,
+    TypedDict,
+    Literal,
+    LiteralString,
+    Self,
+    Any,
+    Coroutine,
+)
 from .misc import Translator
 from .client import RequestClient
 from .constants import (
@@ -53,6 +64,7 @@ class Tunnel:
     sig: str = None
     iv: str = None
     sec: str = None
+    download: Coroutine = None
 
     def __init__(self, url: str, instance: "Instance" = None):
         self.url = url
@@ -66,6 +78,11 @@ class Tunnel:
         self.sig = re.search(r"sig=([^&]+)", url).group(1) if "sig=" in url else None
         self.iv = re.search(r"iv=([^&]+)", url).group(1) if "iv=" in url else None
         self.sec = re.search(r"sec=([^&]+)", url).group(1) if "sec=" in url else None
+        self.download = (
+            lambda **options: self.instance.parent.request_client.download_from_url(
+                url=url, **options
+            )
+        )
 
     def __repr__(self):
         return (
@@ -99,7 +116,7 @@ class Instance:
     async def get_instance_info(self, url: str = None):
         data = await self.parent.get(url or self.url)
         if not isinstance(data, dict):
-            raise exceptions.FetchError("Failed to get instance data")
+            raise exceptions.FetchError(f"{self.url}: Failed to get instance data")
         _cobalt = data.get("cobalt", None)
         if isinstance(_cobalt, dict):
             self.version = _cobalt.get("version", None)
@@ -110,6 +127,11 @@ class Instance:
         return self
 
     async def get_tunnel(self, **body: Unpack[_CobaltBodyOptions]):
+        if not self.version == "unknown":
+            try:
+                await self.get_instance_info()
+            except Exception:
+                ...
         response = await self.parent.post(self.url, data=body)
         if not isinstance(response, dict):
             if "<title>Just a moment...</title>" in response:
@@ -125,7 +147,7 @@ class Instance:
             )
         if response.get("status", None) != "tunnel":
             raise exceptions.FailedToGetTunnel(
-                f'{self.url}: Failed to get tunnel: {response.get("error", dict()).get("code", None)}'
+                f'{self.url}: {response.get("error", dict()).get("code", None)}'
             )
         if "url" not in response:
             raise exceptions.NoUrlInTunnelResponse(
@@ -205,11 +227,22 @@ class Cobalt:
         if self.request_client.session and not self.request_client.session.closed:
             await self.request_client.session.close()
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any):
         if self.request_client and name in self.request_client.__dict__:
             self.request_client.__dict__[name] = value
         if isinstance(self.instance, Instance) and name in self.instance.__dict__:
             self.instance.__dict__[name] = value
+        if isinstance(self.headers, dict):
+            _ = ""
+            for i, letter in enumerate(name):
+                if _ == "" or name[i - 1] == "_":
+                    _ += letter.upper()
+                elif letter == "_":
+                    _ += "-"
+                else:
+                    _ += letter
+            if _ in self.headers:
+                self.headers[_] = value
         self.__dict__[name] = value
 
     def __repr__(self) -> str:

@@ -1,10 +1,11 @@
 from aiohttp import ClientSession
 from .misc import Translator
-from typing import Literal, Union, Dict, Callable, Coroutine
+from typing import Literal, Union, Dict, Callable, Coroutine, Unpack, TypedDict
 from asyncio import sleep, iscoroutinefunction
 from .constants import DEFAULT_TIMEOUT
 from time import time
 from os import path, getenv, makedirs
+from . import exceptions
 
 
 class Response:
@@ -19,7 +20,17 @@ class Response:
         return self.text if not self.json else self.json
 
     def __str__(self):
-        return self.text
+        return str(self.text)
+
+
+class _DownloadOptions(TypedDict, total=False):
+    url: str
+    folder_path: str
+    status_callback: Callable | Coroutine
+    done_callback: Callable | Coroutine
+    status_parent: str
+    headers: Dict[str, str]
+    timeout: int
 
 
 class RequestClient:
@@ -55,44 +66,41 @@ class RequestClient:
                 "http": self.proxy or kwargs.get("proxy", False),
                 "https": self.proxy or kwargs.get("proxy", False),
             }
-            try:
-                if request_type == "get":
-                    response = requests.get(
-                        url,
-                        params=kwargs.get("params"),
-                        headers=kwargs.get("headers", self.headers),
-                        proxies=proxies,
-                        verify=self.verify_proxy or kwargs.get("verify", False),
-                        timeout=kwargs.get("timeout", self.timeout or DEFAULT_TIMEOUT),
-                    )
-                else:
-                    response = requests.post(
-                        url,
-                        data=kwargs.get("data"),
-                        headers=kwargs.get("headers", self.headers),
-                        proxies=proxies,
-                        verify=self.verify_proxy or kwargs.get("verify", False),
-                        timeout=kwargs.get("timeout", self.timeout or DEFAULT_TIMEOUT),
-                    )
-                if response.status_code == 429:
-                    kwargs["retries"] = retries + 1
-                    return await self.request(url, request_type, **kwargs)
-                elif response.status_code == 404:
-                    raise "404"
-                elif "REMOTE_ADDR = " in response.text:
-                    kwargs["retries"] = retries + 1
-                    return await self.request(url, request_type, **kwargs)
-                _response = Response(
-                    headers=response.headers,
+            if request_type == "get":
+                response = requests.get(
+                    url,
+                    params=kwargs.get("params"),
+                    headers=kwargs.get("headers", self.headers),
+                    proxies=proxies,
+                    verify=self.verify_proxy or kwargs.get("verify", False),
+                    timeout=kwargs.get("timeout", self.timeout or DEFAULT_TIMEOUT),
                 )
-                try:
-                    _response.text = response.text
-                    _response.json = response.json()
-                except Exception:
-                    ...
-                return _response
-            except requests.exceptions.ProxyError as exc:
-                raise "prx"
+            else:
+                response = requests.post(
+                    url,
+                    data=kwargs.get("data"),
+                    headers=kwargs.get("headers", self.headers),
+                    proxies=proxies,
+                    verify=self.verify_proxy or kwargs.get("verify", False),
+                    timeout=kwargs.get("timeout", self.timeout or DEFAULT_TIMEOUT),
+                )
+            if response.status_code == 429:
+                kwargs["retries"] = retries + 1
+                return await self.request(url, request_type, **kwargs)
+            elif response.status_code == 404:
+                raise exceptions.PageNotFound(f"{url}: Page not found")
+            elif "REMOTE_ADDR = " in response.text:
+                kwargs["retries"] = retries + 1
+                return await self.request(url, request_type, **kwargs)
+            _response = Response(
+                headers=response.headers,
+            )
+            try:
+                _response.text = response.text
+                _response.json = response.json()
+            except Exception:
+                ...
+            return _response
         else:
             session = (
                 ClientSession(
@@ -126,7 +134,7 @@ class RequestClient:
                         kwargs["retries"] = retries + 1
                         return await self.request(url, request_type, **kwargs)
                     elif response.status == 404:
-                        raise "404"
+                        raise exceptions.PageNotFound(f"{url}: Page not found")
                     _response = Response(headers=response.headers)
                     try:
                         _response.text = await response.text()
@@ -155,44 +163,52 @@ class RequestClient:
 
     async def download_from_url(
         self,
-        url: str,
-        folder_path: str = None,
-        status_callback: Callable | Coroutine = None,
-        done_callback: Callable | Coroutine = None,
-        status_parent=None,
-        **kwargs,
+        **options: Unpack[_DownloadOptions],
     ):
         start_at = time()
         total_size = 0
-        destination_folder = folder_path or path.join(path.expanduser("~"), "Downloads")
+        destination_folder = options.get("folder_path", None) or path.join(
+            path.expanduser("~"), "Downloads"
+        )
         if not path.exists(destination_folder):
             makedirs(destination_folder)
         session = (
             ClientSession(
-                headers=kwargs.get("headers", self.headers),
-                timeout=kwargs.get("timeout", self.timeout or DEFAULT_TIMEOUT),
+                headers=options.get("headers", self.headers),
             )
             if not self.session or self.session.closed
             else self.session
         )
-        async with session.get(url) as resp:
+        async with session.get(
+            options.get("url"),
+            timeout=options.get("timeout", self.timeout or DEFAULT_TIMEOUT),
+        ) as resp:
             while True:
                 chunk = await resp.content.read(1024)
                 if not chunk:
                     break
                 total_size += len(chunk)
-                if status_callback:
-                    if iscoroutinefunction(status_callback):
-                        await status_callback(total_size, start_at, status_parent)
+                if options.get("status_callback", None):
+                    if iscoroutinefunction(options.get("status_callback")):
+                        await (options.get("status_callback"))(
+                            total_size, start_at, options.get("status_parent", None)
+                        )
                     else:
-                        status_callback(total_size, start_at, status_parent)
-                with open(destination_folder, "ab") as f:
+                        (options.get("status_callback"))(
+                            total_size, start_at, options.get("status_parent", None)
+                        )
+                with open(path.join(destination_folder), "ab") as f:
                     f.write(chunk)
-        if done_callback:
-            if iscoroutinefunction(done_callback):
-                await done_callback(total_size, start_at, status_parent)
+        if options.get("done_callback", None):
+            if iscoroutinefunction(options.get("done_callback")):
+                await (options.get("done_callback"))(
+                    total_size, start_at, options.get("status_parent", None)
+                )
             else:
-                done_callback(total_size, start_at, status_parent)
+                (options.get("done_callback"))(
+                    total_size, start_at, options.get("status_parent", None)
+                )
+        return
 
     def __setattr__(self, name, value):
         self.__dict__[name] = value
