@@ -12,6 +12,7 @@ from typing import (
     Self,
     Any,
     Coroutine,
+    Callable,
 )
 from .misc import Translator
 from .client import RequestClient, _DownloadOptions
@@ -55,6 +56,32 @@ class _CobaltBodyOptions(TypedDict, total=False):
     tiktokH265: bool
     twitterGif: bool
     youtubeHLS: bool
+
+
+class _CobaltDownloadOptions(TypedDict, total=False):
+    url: str
+    videoQuality: Literal[
+        "max", "144", "240", "360", "480", "720", "1080", "1440", "2160", "4320"
+    ] = "max"
+    audioFormat: Literal["best", "mp3", "ogg", "wav", "opus"] = "best"
+    audioBitrate: Literal["320", "256", "128", "96", "64", "8"] = "best"
+    filenameStyle: Literal["classic", "pretty", "basic", "nerdy"] = "classic"
+    downloadMode: Literal["auto", "audio", "mute"] = "auto"
+    youtubeVideoCodec: Literal["h264", "av1", "vp9"] = "h264"
+    youtubeDubLang: LiteralString = ""
+    alwaysProxy: bool = False
+    disableMetadata: bool = False
+    tiktokFullAudio: bool = False
+    tiktokH265: bool = False
+    twitterGif: bool = False
+    youtubeHLS: bool = False
+    folder_path: str
+    filename: str
+    status_callback: Callable | Coroutine
+    done_callback: Callable | Coroutine
+    status_parent: str
+    headers: Dict[str, str]
+    timeout: int
 
 
 class Tunnel:
@@ -227,12 +254,14 @@ class Cobalt:
         except Exception as exc:
             raise exceptions.FetchError(f"Failed to fetch instances: {exc}")
 
-    async def download(self, url: Union[str, Tunnel], **body: Unpack[_DownloadOptions]):
+    async def download(
+        self, url: Union[str, Tunnel], **body: Unpack[_CobaltDownloadOptions]
+    ):
         if isinstance(url, Tunnel):
             return await self.request_client.download_from_url(url=url, **body)
         for instance in await self.fetch_instances():
             try:
-                tunnel = await instance.get_tunnel(url=url)
+                tunnel = await instance.get_tunnel(url=url, **body)
                 return await tunnel.download(**body)
             except Exception as exc:
                 self.debug(exc)
