@@ -35,6 +35,7 @@ class _CobaltParameters(TypedDict, total=False):
     proxy: str
     session: ClientSession
     headers: Dict[str, str]
+    debug: bool
 
 
 class _CobaltBodyOptions(TypedDict, total=False):
@@ -174,10 +175,7 @@ class Cobalt:
 
     def __init__(self, **params: Unpack[_CobaltParameters]):
         self.__dict__.update(params)
-        self.instance = Instance(
-            url=params.get("instance", getenv("COBALT_INSTANCE", FALLBACK_INSTANCE)),
-            parent=self,
-        )
+        self.instances = []
         self.fallback_instance = Instance(
             url=FALLBACK_INSTANCE, api_key=FALLBACK_INSTANCE_API_KEY, parent=self
         )
@@ -207,6 +205,7 @@ class Cobalt:
         )
         self.get = self.request_client.get
         self.post = self.request_client.post
+        self.debug = (lambda *args: print(*args)) if params.get("debug", getenv("COBALT_DEBUG", False)) else lambda *args: ...
 
     async def fetch_instances(self) -> List[Instance]:
         try:
@@ -215,10 +214,22 @@ class Cobalt:
             )
             if not isinstance(instances, list):
                 raise exceptions.FetchError("Failed to fetch instances")
-            return [Instance(parent=self, **instance) for instance in instances]
+            self.instances = [Instance(parent=self, **instance) for instance in instances] + [self.fallback_instance]
+            return self.instances
         except Exception as exc:
             raise exceptions.FetchError(f"Failed to fetch instances: {exc}")
 
+    async def download(self, url: Union[str, Tunnel], **body: Unpack[_DownloadOptions]):
+        if isinstance(url, Tunnel):
+            return await self.request_client.download_from_url(url=url, **body)
+        for instance in await self.fetch_instances():
+            try:
+                tunnel = await instance.get_tunnel(url=url)
+                return await tunnel.download(**body)
+            except Exception as exc:
+                self.debug(exc)
+        raise exceptions.AllInstancesFailed(f"Failed to download {url} using any of {len(self.instances)} instances...")
+        
     async def __aenter__(self):
         return self
 

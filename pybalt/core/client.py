@@ -181,44 +181,50 @@ class RequestClient:
             if not self.session or self.session.closed
             else self.session
         )
-        async with session.get(
-            options.get("url"),
-            timeout=options.get("timeout", self.timeout or DEFAULT_TIMEOUT),
-        ) as resp:
-            file_path = path.join(
-                    destination_folder,
-                    options.get(
-                        "filename",
-                        (resp.headers.get("Content-Disposition"))
-                        .split('filename="')[1].split('"')[0],
-                    ),
-            )
-            async with aopen(file_path, "wb") as f:
-                while True:
-                    chunk = await resp.content.read(1024)
-                    if not chunk:
-                        break
-                    await f.write(chunk)
-                    total_size += len(chunk)
-                    if options.get("status_callback", None):
-                        if iscoroutinefunction(options.get("status_callback")):
-                            await (options.get("status_callback"))(
-                                total_size, start_at, options.get("status_parent", None)
-                            )
-                        else:
-                            (options.get("status_callback"))(
-                                total_size, start_at, options.get("status_parent", None)
-                            )
-        if options.get("done_callback", None):
-            if iscoroutinefunction(options.get("done_callback")):
-                await (options.get("done_callback"))(
-                    total_size, start_at, options.get("status_parent", None)
+        try:
+            async with session.get(
+                options.get("url"),
+                timeout=options.get("timeout", self.timeout or DEFAULT_TIMEOUT),
+            ) as resp:
+                file_path = path.join(
+                        destination_folder,
+                        options.get(
+                            "filename",
+                            (resp.headers.get("Content-Disposition"))
+                            .split('filename="')[1].split('"')[0],
+                        ),
                 )
-            else:
-                (options.get("done_callback"))(
-                    total_size, start_at, options.get("status_parent", None)
-                )
-        await session.close()
+                async with aopen(file_path, "wb") as f:
+                    while True:
+                        chunk = await resp.content.read(1024)
+                        if not chunk:
+                            break
+                        await f.write(chunk)
+                        total_size += len(chunk)
+                        if options.get("status_callback", None):
+                            if iscoroutinefunction(options.get("status_callback")):
+                                await (options.get("status_callback"))(
+                                    total_size, start_at, options.get("status_parent", None)
+                                )
+                            else:
+                                (options.get("status_callback"))(
+                                    total_size, start_at, options.get("status_parent", None)
+                                )
+            if options.get("done_callback", None):
+                if iscoroutinefunction(options.get("done_callback")):
+                    await (options.get("done_callback"))(
+                        total_size, start_at, options.get("status_parent", None)
+                    )
+                else:
+                    (options.get("done_callback"))(
+                        total_size, start_at, options.get("status_parent", None)
+                    )
+        except Exception as exc:
+            print(exc)
+            raise exc
+        finally:
+            if options.get("close", True):
+                await session.close()
         return
 
     def __setattr__(self, name, value):
