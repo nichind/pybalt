@@ -1,4 +1,5 @@
 from os import path, getenv
+from typing import TypedDict, Unpack
 
 
 class Translator:
@@ -22,3 +23,25 @@ class Translator:
             if language.upper() != "EN":
                 return self.translate(key, "EN")
             return key
+
+
+class _DownloadCallbackData(TypedDict):
+    filename: str
+    total_size: int
+    start_at: int
+    time_passed: int | float
+    file_path: str
+    download_speed: int
+
+
+class DefaultCallbacks:
+    @classmethod
+    async def status_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
+        print(
+            f"Downloading {data['filename']} | time passed: {data['time_passed']}s, {data['total_size'] / 1024 / 1024 : .2f} MB | {data['download_speed'] / 1024 / 1024 : .2f} MB/s",
+            end="\r"
+        )
+
+    @classmethod
+    async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
+        print(f"Downloaded {data['filename']} to {data['file_path']}")

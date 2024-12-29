@@ -1,5 +1,5 @@
 from aiohttp import ClientSession
-from .misc import Translator
+from .misc import Translator, DefaultCallbacks
 from typing import Literal, Union, Dict, Callable, Coroutine, Unpack, TypedDict
 from asyncio import sleep, iscoroutinefunction
 from .constants import DEFAULT_TIMEOUT
@@ -33,6 +33,7 @@ class _DownloadOptions(TypedDict, total=False):
     status_parent: str
     headers: Dict[str, str]
     timeout: int
+    callback_rate: int
 
 
 class RequestClient:
@@ -80,7 +81,7 @@ class RequestClient:
             else:
                 response = requests.post(
                     url,
-                    data=kwargs.get("data"),
+                    json=kwargs.get("data"),
                     headers=kwargs.get("headers", self.headers),
                     proxies=proxies,
                     verify=self.verify_proxy or kwargs.get("verify", False),
@@ -166,14 +167,18 @@ class RequestClient:
     async def download_from_url(
         self,
         **options: Unpack[_DownloadOptions],
-    ):
-        start_at = time()
+    ) -> str:
+        start_at = int(time())
         total_size = 0
-        destination_folder = options.get("folder_path", None) or path.join(
-            path.expanduser("~"), "Downloads"
-        )
+        destination_folder = options.get(
+            "folder_path", getenv("COBALT_DOWNLOAD_FOLDER", None)
+        ) or path.join(path.expanduser("~"), "Downloads")
         if not path.exists(destination_folder):
             makedirs(destination_folder)
+        if not options.get("status_callback"):
+            options["status_callback"] = DefaultCallbacks.status_callback
+        if not options.get("done_callback"):
+            options["done_callback"] = DefaultCallbacks.done_callback
         session = (
             ClientSession(
                 headers=options.get("headers", self.headers),
@@ -184,53 +189,80 @@ class RequestClient:
         try:
             async with session.get(
                 options.get("url"),
-                timeout=options.get("timeout", self.timeout or DEFAULT_TIMEOUT),
             ) as resp:
+                filename = options.get(
+                    "filename",
+                    (resp.headers.get("Content-Disposition"))
+                    .split('filename="')[1]
+                    .split('"')[0],
+                )
                 file_path = path.join(
                     destination_folder,
-                    options.get(
-                        "filename",
-                        (resp.headers.get("Content-Disposition"))
-                        .split('filename="')[1]
-                        .split('"')[0],
-                    ),
+                    filename,
                 )
                 async with aopen(file_path, "wb") as f:
+                    last_callback = 0
+                    last_size = 0
                     while True:
-                        chunk = await resp.content.read(1024)
+                        chunk = await resp.content.read(1024 * 64)
                         if not chunk:
                             break
                         await f.write(chunk)
                         total_size += len(chunk)
-                        if options.get("status_callback", None):
+                        if time() - last_callback >= 1:
+                            download_speed = (total_size - last_size) / (time() - last_callback)
+                            last_size = total_size
+                            last_callback = time()
+                            print(f"Downloading {filename} | time passed: {round(time() - start_at, 2)}s, {total_size / 1024 / 1024 : .2f} MB | {download_speed / 1024 : .2f} KB/s", end="\r")
                             if iscoroutinefunction(options.get("status_callback")):
                                 await (options.get("status_callback"))(
-                                    total_size,
-                                    start_at,
-                                    options.get("status_parent", None),
-                                )
+                                    total_size=total_size,
+                                    start_at=start_at,
+                                    time_passed=round(time() - start_at, 2),
+                                    file_path=file_path,
+                                    filename=filename,
+                                    download_speed=download_speed,
+                                    )
                             else:
                                 (options.get("status_callback"))(
-                                    total_size,
-                                    start_at,
-                                    options.get("status_parent", None),
+                                    total_size=total_size,
+                                    start_at=start_at,
+                                    time_passed=round(time() - start_at, 2),
+                                    file_path=file_path,
+                                    filename=filename,
+                                    download_speed=download_speed,
+                                )
+                            if options.get("status_parent", None):
+                                options.get("status_parent").update(
+                                    {
+                                        "total_size": total_size,
+                                        "start_at": start_at,
+                                        "file_path": file_path,
+                                    }
                                 )
             if options.get("done_callback", None):
                 if iscoroutinefunction(options.get("done_callback")):
                     await (options.get("done_callback"))(
-                        total_size, start_at, options.get("status_parent", None)
+                        total_size=total_size,
+                        start_at=start_at,
+                        time_passed=round(time() - start_at, 2),
+                        file_path=file_path,
+                        filename=filename,
                     )
                 else:
                     (options.get("done_callback"))(
-                        total_size, start_at, options.get("status_parent", None)
+                        total_size=total_size,
+                        start_at=start_at,
+                        time_passed=round(time() - start_at, 2),
+                        file_path=file_path,
+                        filename=filename,
                     )
         except Exception as exc:
-            print(exc)
             raise exc
         finally:
             if options.get("close", True):
                 await session.close()
-        return
+        return file_path
 
     def __setattr__(self, name, value):
         self.__dict__[name] = value

@@ -92,8 +92,13 @@ class Tunnel:
     sig: str = None
     iv: str = None
     sec: str = None
+    filename: str = None
+    extension: str = None
 
-    def __init__(self, url: str, instance: "Instance" = None):
+    def __init__(self, data: dict, instance: "Instance" = None, auto_download: dict = _CobaltDownloadOptions):
+        url = data.get("url", None)
+        if not url:
+            raise exceptions.NoUrlInTunnelResponse("No url found in data while creating tunnel instance")
         self.url = url
         self.instance = instance
         self.tunnel_id = (
@@ -105,12 +110,16 @@ class Tunnel:
         self.sig = re.search(r"sig=([^&]+)", url).group(1) if "sig=" in url else None
         self.iv = re.search(r"iv=([^&]+)", url).group(1) if "iv=" in url else None
         self.sec = re.search(r"sec=([^&]+)", url).group(1) if "sec=" in url else None
+        self.filename = data.get("filename", None)
+        self.extension = self.filename.split(".")[-1]
 
     async def download(self, **body: Unpack[_DownloadOptions]):
-        if "url" in body:
-            self.url = body["url"]
+        if "url" not in body:
+            body["url"] = self.url
+        if "filename" not in body:
+            body["filename"] = self.filename
         return await self.instance.parent.request_client.download_from_url(
-            url=self.url, **body
+            **body
         )
 
     def __repr__(self):
@@ -155,14 +164,24 @@ class Instance:
             self.services = _cobalt.get("services", None)
         return self
 
-    async def get_tunnel(self, **body: Unpack[_CobaltBodyOptions]):
+    async def get_tunnel(self, **body: Unpack[_CobaltBodyOptions]) -> Tunnel | List[Tunnel]:
         if not self.version == "unknown":
             try:
                 await self.get_instance_info()
             except Exception:
                 ...
-        response = await self.parent.post(self.url, data=body)
-        if not isinstance(response, dict):
+        if len(re.findall("[&?]list=([^&]+)", body.get("url", ""))) > 0:
+            tunnels = []
+            from pytube import Playlist
+            playlist = Playlist(body.get("url"))
+            for i, item_url in enumerate(playlist.video_urls):
+                if "music." in item_url:
+                    item_url = item_url.replace("www", "music")
+                body["url"] = item_url
+                tunnels += [await self.get_tunnel(**body)]
+            return tunnels
+        response = await self.parent.post(self.url, data=body)  # Pray for success!
+        if not isinstance(response, dict):  # If your prayers not fulfilled
             if "<title>Just a moment...</title>" in response:
                 raise exceptions.FailedToGetTunnel(
                     f"{self.url}: Cloudflare is blocking requests"
@@ -170,6 +189,10 @@ class Instance:
             elif ">Sorry, you have been blocked</h1>" in response:
                 raise exceptions.FailedToGetTunnel(
                     f"{self.url}: Site owner set that cloudflare is blocking your requests"
+                )
+            elif "ry again" in response:
+                raise exceptions.FailedToGetTunnel(
+                    f"{self.url}: Cloudflare failed to tunnel connection, try again later"
                 )
             raise exceptions.FailedToGetTunnel(
                 f"{self.url}: Reponse is not a dict: {response}"
@@ -182,7 +205,7 @@ class Instance:
             raise exceptions.NoUrlInTunnelResponse(
                 f"{self.url}: No url found in tunnel response: {response}"
             )
-        tunnel = Tunnel(response["url"], instance=self)
+        tunnel = Tunnel(response, instance=self)
         return tunnel
 
     def __repr__(self):
