@@ -1,5 +1,5 @@
 from aiohttp import ClientSession
-from .misc import Translator, DefaultCallbacks
+from .misc import Translator, DefaultCallbacks, StatusParent
 from typing import Literal, Union, Dict, Callable, Coroutine, Unpack, TypedDict
 from asyncio import sleep, iscoroutinefunction
 from .constants import DEFAULT_TIMEOUT
@@ -169,7 +169,7 @@ class RequestClient:
         **options: Unpack[_DownloadOptions],
     ) -> str:
         start_at = int(time())
-        total_size = 0
+        downloaded_size = 0
         destination_folder = options.get(
             "folder_path", getenv("COBALT_DOWNLOAD_FOLDER", None)
         ) or path.join(path.expanduser("~"), "Downloads")
@@ -190,9 +190,15 @@ class RequestClient:
             async with session.get(
                 options.get("url"),
             ) as resp:
+                total_size = int(resp.headers.get("Content-Length", 0))
                 filename = options.get(
                     "filename",
-                    (resp.headers.get("Content-Disposition"))
+                    (
+                        resp.headers.get(
+                            "Content-Disposition",
+                            f'filename="{options.get("url").split("/")[-1].split("?")[0]}"',
+                        )
+                    )
                     .split('filename="')[1]
                     .split('"')[0],
                 )
@@ -208,42 +214,73 @@ class RequestClient:
                         if not chunk:
                             break
                         await f.write(chunk)
-                        total_size += len(chunk)
+                        downloaded_size += len(chunk)
                         if time() - last_callback >= 1:
-                            download_speed = (total_size - last_size) / (time() - last_callback)
-                            last_size = total_size
+                            download_speed = (downloaded_size - last_size) / (
+                                time() - last_callback
+                            )
+                            last_size = downloaded_size
                             last_callback = time()
-                            print(f"Downloading {filename} | time passed: {round(time() - start_at, 2)}s, {total_size / 1024 / 1024 : .2f} MB | {download_speed / 1024 : .2f} KB/s", end="\r")
+                            print(
+                                f"Downloading {filename} | time passed: {round(time() - start_at, 2)}s, "
+                                f"{downloaded_size / 1024 / 1024 : .2f} MB | "
+                                f"{download_speed / 1024 : .2f} KB/s | "
+                                f"{total_size / 1024 / 1024 : .2f} MB total",
+                                end="\r",
+                            )
                             if iscoroutinefunction(options.get("status_callback")):
                                 await (options.get("status_callback"))(
-                                    total_size=total_size,
+                                    downloaded_size=downloaded_size,
                                     start_at=start_at,
                                     time_passed=round(time() - start_at, 2),
                                     file_path=file_path,
                                     filename=filename,
                                     download_speed=download_speed,
-                                    )
+                                    total_size=total_size,
+                                )
                             else:
                                 (options.get("status_callback"))(
-                                    total_size=total_size,
+                                    downloaded_size=downloaded_size,
                                     start_at=start_at,
                                     time_passed=round(time() - start_at, 2),
                                     file_path=file_path,
                                     filename=filename,
                                     download_speed=download_speed,
+                                    total_size=total_size,
                                 )
                             if options.get("status_parent", None):
-                                options.get("status_parent").update(
-                                    {
-                                        "total_size": total_size,
-                                        "start_at": start_at,
-                                        "file_path": file_path,
-                                    }
-                                )
+                                if isinstance(
+                                    options.get("status_parent"), StatusParent
+                                ):
+                                    options.get(
+                                        "status_parent"
+                                    ).downloaded_size = downloaded_size
+                                    options.get("status_parent").start_at = start_at
+                                    options.get("status_parent").time_passed = round(
+                                        time() - start_at, 2
+                                    )
+                                    options.get("status_parent").file_path = file_path
+                                    options.get("status_parent").filename = filename
+                                    options.get(
+                                        "status_parent"
+                                    ).download_speed = download_speed
+                                elif isinstance(options.get("status_parent"), dict):
+                                    options.get("status_parent").update(
+                                        downloaded_size=downloaded_size,
+                                        start_at=start_at,
+                                        time_passed=round(time() - start_at, 2),
+                                        file_path=file_path,
+                                        filename=filename,
+                                        download_speed=download_speed,
+                                    )
+                                else:
+                                    raise TypeError(
+                                        "status_parent must be dict or StatusParent"
+                                    )
             if options.get("done_callback", None):
                 if iscoroutinefunction(options.get("done_callback")):
                     await (options.get("done_callback"))(
-                        total_size=total_size,
+                        downloaded_size=downloaded_size,
                         start_at=start_at,
                         time_passed=round(time() - start_at, 2),
                         file_path=file_path,
@@ -251,7 +288,7 @@ class RequestClient:
                     )
                 else:
                     (options.get("done_callback"))(
-                        total_size=total_size,
+                        downloaded_size=downloaded_size,
                         start_at=start_at,
                         time_passed=round(time() - start_at, 2),
                         file_path=file_path,

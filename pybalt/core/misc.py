@@ -25,9 +25,19 @@ class Translator:
             return key
 
 
+class StatusParent:
+    total_size: int
+    downloaded_size: int
+    start_at: int
+    time_passed: float
+    file_path: str
+    filename: str
+    download_speed: int
+
+
 class _DownloadCallbackData(TypedDict):
     filename: str
-    total_size: int
+    downloaded_size: int
     start_at: int
     time_passed: int | float
     file_path: str
@@ -38,8 +48,8 @@ class DefaultCallbacks:
     @classmethod
     async def status_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
         print(
-            f"Downloading {data['filename']} | time passed: {data['time_passed']}s, {data['total_size'] / 1024 / 1024 : .2f} MB | {data['download_speed'] / 1024 / 1024 : .2f} MB/s",
-            end="\r"
+            f"Downloading {data['filename']} | time passed: {data['time_passed']}s, {data['downloaded_size'] / 1024 / 1024 : .2f} MB | {data['download_speed'] / 1024 / 1024 : .2f} MB/s",
+            end="\r",
         )
 
     @classmethod

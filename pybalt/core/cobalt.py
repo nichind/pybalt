@@ -95,10 +95,17 @@ class Tunnel:
     filename: str = None
     extension: str = None
 
-    def __init__(self, data: dict, instance: "Instance" = None, auto_download: dict = _CobaltDownloadOptions):
+    def __init__(
+        self,
+        data: dict,
+        instance: "Instance" = None,
+        auto_download: dict = _CobaltDownloadOptions,
+    ):
         url = data.get("url", None)
         if not url:
-            raise exceptions.NoUrlInTunnelResponse("No url found in data while creating tunnel instance")
+            raise exceptions.NoUrlInTunnelResponse(
+                "No url found in response data while creating tunnel instance"
+            )
         self.url = url
         self.instance = instance
         self.tunnel_id = (
@@ -118,16 +125,16 @@ class Tunnel:
             body["url"] = self.url
         if "filename" not in body:
             body["filename"] = self.filename
-        return await self.instance.parent.request_client.download_from_url(
-            **body
-        )
+        return await self.instance.parent.request_client.download_from_url(**body)
 
     def __repr__(self):
         return (
             f"{self.__class__.__name__}({(str(self.tunnel_id) + ', ' if self.tunnel_id else '') + self.url[:24] + '...'}"
-            + (f", expires in {int(self.exp) - int(time())} seconds)"
-            if self.exp and self.exp.isdigit()
-            else ")")
+            + (
+                f", expires in {int(self.exp) - int(time())} seconds)"
+                if self.exp and self.exp.isdigit()
+                else ")"
+            )
         )
 
 
@@ -164,7 +171,9 @@ class Instance:
             self.services = _cobalt.get("services", None)
         return self
 
-    async def get_tunnel(self, **body: Unpack[_CobaltBodyOptions]) -> Tunnel | List[Tunnel]:
+    async def get_tunnel(
+        self, **body: Unpack[_CobaltBodyOptions]
+    ) -> Tunnel | List[Tunnel]:
         if not self.version == "unknown":
             try:
                 await self.get_instance_info()
@@ -173,6 +182,7 @@ class Instance:
         if len(re.findall("[&?]list=([^&]+)", body.get("url", ""))) > 0:
             tunnels = []
             from pytube import Playlist
+
             playlist = Playlist(body.get("url"))
             for i, item_url in enumerate(playlist.video_urls):
                 if "music." in item_url:
