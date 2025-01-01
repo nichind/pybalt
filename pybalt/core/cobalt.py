@@ -124,10 +124,10 @@ class Tunnel:
 
     def __repr__(self):
         return (
-            f"{self.__class__.__name__}({self.tunnel_id}"
-            + f", expires in {int(self.exp) - int(time())} seconds)"
+            f"{self.__class__.__name__}({(str(self.tunnel_id) + ', ' if self.tunnel_id else '') + self.url[:24] + '...'}"
+            + (f", expires in {int(self.exp) - int(time())} seconds)"
             if self.exp and self.exp.isdigit()
-            else ")"
+            else ")")
         )
 
 
@@ -197,7 +197,7 @@ class Instance:
             raise exceptions.FailedToGetTunnel(
                 f"{self.url}: Reponse is not a dict: {response}"
             )
-        if response.get("status", None) != "tunnel":
+        if response.get("status", None) in ["error"]:
             raise exceptions.FailedToGetTunnel(
                 f'{self.url}: {response.get("error", dict()).get("code", None)}'
             )
