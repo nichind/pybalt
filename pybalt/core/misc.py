@@ -1,5 +1,6 @@
 from os import path, getenv
 from typing import TypedDict, Unpack
+from shutil import get_terminal_size
 
 
 class Translator:
@@ -25,6 +26,23 @@ class Translator:
             return key
 
 
+class Terminal:
+    @classmethod
+    def get_size(cls) -> tuple[int, int]:
+        return get_terminal_size()
+
+    @classmethod
+    def lprint(cls, text: str, lend: str = "", **kwargs) -> None:
+        if len(text) >= cls.get_size()[0]:
+            text = text[: cls.get_size()[0] - (3 + (len(lend) + 1 if lend else 0))] + "..." + (" " + lend if lend else "")
+        else:
+            text = text + " " * (cls.get_size()[0] - len(text) - (len(lend) + 1 if lend else 0)) + (lend if lend else "")
+        print(text, **kwargs)
+
+
+lprint = Terminal.lprint
+
+
 class StatusParent:
     total_size: int
     downloaded_size: int
@@ -47,11 +65,11 @@ class _DownloadCallbackData(TypedDict):
 class DefaultCallbacks:
     @classmethod
     async def status_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
-        print(
+        lprint(
             f"Downloading {data['filename']} | time passed: {data['time_passed']}s, {data['downloaded_size'] / 1024 / 1024 : .2f} MB | {data['download_speed'] / 1024 / 1024 : .2f} MB/s",
             end="\r",
         )
 
     @classmethod
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
-        print(f"Downloaded {data['filename']} to {data['file_path']}")
+        lprint(f"Downloaded {data['filename']} to {data['file_path']}")
