@@ -34,6 +34,7 @@ class _DownloadOptions(TypedDict, total=False):
     headers: Dict[str, str]
     timeout: int
     callback_rate: int
+    proxy: str
 
 
 class RequestClient:
@@ -182,6 +183,7 @@ class RequestClient:
         session = (
             ClientSession(
                 headers=options.get("headers", self.headers),
+                proxy=options.get("proxy"),
             )
             if not self.session or self.session.closed
             else self.session
@@ -190,6 +192,8 @@ class RequestClient:
             async with session.get(
                 options.get("url"),
             ) as resp:
+                if resp.status.__str__[0] in ["4", "5"]:
+                    raise exceptions.DownloadError("Failed to download file, status code: " + resp.status.__str__())
                 total_size = int(resp.headers.get("Content-Length", 0))
                 filename = options.get(
                     "filename",
@@ -277,6 +281,10 @@ class RequestClient:
                                     raise TypeError(
                                         "status_parent must be dict or StatusParent"
                                     )
+            if downloaded_size <= 1024:
+                raise exceptions.DownloadError(
+                    "Download failed, no data received"
+                )
             if options.get("done_callback", None):
                 if iscoroutinefunction(options.get("done_callback")):
                     await (options.get("done_callback"))(

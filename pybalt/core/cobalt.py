@@ -268,9 +268,12 @@ class Cobalt:
         self.get = self.request_client.get
         self.post = self.request_client.post
         self.debug = (
-            (lambda *args: print(*args))
+            (lambda *args, **kwargs: print(*args, **kwargs))
             if params.get("debug", getenv("COBALT_DEBUG", False))
-            else lambda *args: ...
+            else lambda *args, **kwargs: ...
+        )
+        self.local_instance = Instance(
+            url=getenv("COBALT_LOCAL_INSTANCE", "http://127.0.0.1:9000"), api_key=getenv("COBALT_LOCAL_INSTANCE_API_KEY", None), parent=self
         )
 
     async def fetch_instances(self) -> List[Instance]:
@@ -283,6 +286,12 @@ class Cobalt:
             self.instances = [
                 Instance(parent=self, **instance) for instance in instances
             ] + [self.fallback_instance]
+            try:
+                self.debug("Fetching local instance info...")
+                await self.local_instance.get_instance_info()
+                self.instances += [self.local_instance]
+            except Exception:
+                self.debug("Didn't find local instance, skipping")
             return self.instances
         except Exception as exc:
             raise exceptions.FetchError(f"Failed to fetch instances: {exc}")
@@ -299,7 +308,7 @@ class Cobalt:
             except Exception as exc:
                 self.debug(exc)
         raise exceptions.AllInstancesFailed(
-            f"Failed to download {url} using any of {len(self.instances)} instances..."
+            f"Failed to download {url} using any of {len(self.instances)} instances. If this issue persists, you can host your own local instance, more on it here: https://github.com/imputnet/cobalt/blob/main/docs/run-an-instance.md"
         )
 
     async def __aenter__(self):
