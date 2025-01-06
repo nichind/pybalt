@@ -1,5 +1,5 @@
 from aiohttp import ClientSession
-from .misc import Translator, DefaultCallbacks, StatusParent
+from .misc import Translator, DefaultCallbacks, StatusParent, lprint
 from typing import Literal, Union, Dict, Callable, Coroutine, Unpack, TypedDict
 from asyncio import sleep, iscoroutinefunction
 from .constants import DEFAULT_TIMEOUT
@@ -192,7 +192,7 @@ class RequestClient:
             async with session.get(
                 options.get("url"),
             ) as resp:
-                if resp.status.__str__[0] in ["4", "5"]:
+                if resp.status.__str__()[0] in ["4", "5"]:
                     raise exceptions.DownloadError("Failed to download file, status code: " + resp.status.__str__())
                 total_size = int(resp.headers.get("Content-Length", 0))
                 filename = options.get(
@@ -213,6 +213,7 @@ class RequestClient:
                 async with aopen(file_path, "wb") as f:
                     last_callback = 0
                     last_size = 0
+                    freeze_start_time = None
                     while True:
                         chunk = await resp.content.read(1024 * 64)
                         if not chunk:
@@ -225,13 +226,22 @@ class RequestClient:
                             )
                             last_size = downloaded_size
                             last_callback = time()
-                            print(
+                            lprint(
                                 f"Downloading {filename} | time passed: {round(time() - start_at, 2)}s, "
                                 f"{downloaded_size / 1024 / 1024 : .2f} MB | "
                                 f"{download_speed / 1024 : .2f} KB/s | "
                                 f"{total_size / 1024 / 1024 : .2f} MB total",
                                 end="\r",
                             )
+                            if download_speed == 0:
+                                if freeze_start_time is None:
+                                    freeze_start_time = time()
+                                elif time() - freeze_start_time > options.get("freeze_timeout", 30):
+                                    if options.get("raise_on_freeze", True):
+                                        raise exceptions.DownloadError("Download freezed for too long")
+                            else:
+                                freeze_start_time = None
+
                             if iscoroutinefunction(options.get("status_callback")):
                                 await (options.get("status_callback"))(
                                     downloaded_size=downloaded_size,
