@@ -218,7 +218,6 @@ class RequestClient:
                     last_size = 0
                     download_speed = 0
                     last_callback = time()
-                    print("length", total_size)
                     while True:
                         if total_size == -1:
                             chunk = await resp.content.read()
@@ -226,43 +225,46 @@ class RequestClient:
                                 break
                         else:
                             chunk = resp.content.read_nowait()
-                        await f.write(chunk)
-                        downloaded_size += len(chunk)
-                        download_speed = (downloaded_size - last_size) / (
-                            time() - last_callback
-                            if time() - last_callback > 0
-                            else 0.01
-                        )
-                        last_size = downloaded_size
+                        if chunk:
+                            await f.write(chunk)
+                            downloaded_size += len(chunk)
                         if downloaded_size >= total_size and total_size != -1:
                             break
                         if time() - last_callback >= 0.345:
-                            lprint(
-                                f"Downloading {filename} | time passed: {int(time() - start_at)}s, "
-                                f"{downloaded_size / 1024 / 1024 : .2f} MB | kek"
-                                f"{download_speed / 1024 : .2f} KB/s | "
-                                f"{total_size / 1024 / 1024 : .2f} MB total",
-                                end="\r",
+                            download_speed = (downloaded_size - last_size) / (
+                                time() - last_callback
+                                if time() - last_callback > 0
+                                else 0.01
                             )
-                            if iscoroutinefunction(options.get("status_callback")):
-                                await (options.get("status_callback"))(
-                                    downloaded_size=downloaded_size,
-                                    start_at=start_at,
-                                    time_passed=round(time() - start_at, 2),
-                                    file_path=file_path,
-                                    filename=filename,
-                                    download_speed=download_speed,
-                                    total_size=total_size,
-                                )
+                            last_size = downloaded_size
+                            if options.get("status_parent", None) is not None:
+                                if iscoroutinefunction(options.get("status_callback")):
+                                    await (options.get("status_callback"))(
+                                        downloaded_size=downloaded_size,
+                                        start_at=start_at,
+                                        time_passed=round(time() - start_at, 2),
+                                        file_path=file_path,
+                                        filename=filename,
+                                        download_speed=download_speed,
+                                        total_size=total_size,
+                                    )
+                                else:
+                                    (options.get("status_callback"))(
+                                        downloaded_size=downloaded_size,
+                                        start_at=start_at,
+                                        time_passed=round(time() - start_at, 2),
+                                        file_path=file_path,
+                                        filename=filename,
+                                        download_speed=download_speed,
+                                        total_size=total_size,
+                                    )
                             else:
-                                (options.get("status_callback"))(
-                                    downloaded_size=downloaded_size,
-                                    start_at=start_at,
-                                    time_passed=round(time() - start_at, 2),
-                                    file_path=file_path,
-                                    filename=filename,
-                                    download_speed=download_speed,
-                                    total_size=total_size,
+                                lprint(
+                                    f"Downloading {filename} | time passed: {int(time() - start_at)}s, "
+                                    f"{downloaded_size / 1024 / 1024 : .2f} MB | "
+                                    f"{download_speed / 1024 : .2f} KB/s | "
+                                    f"{total_size / 1024 / 1024 : .2f} MB total",
+                                    end="\r",
                                 )
                             if options.get("status_parent", None):
                                 if isinstance(
@@ -280,6 +282,7 @@ class RequestClient:
                                     options.get(
                                         "status_parent"
                                     ).download_speed = download_speed
+                                    options.get("status_parent").total_size = total_size
                                 elif isinstance(options.get("status_parent"), dict):
                                     options.get("status_parent").update(
                                         downloaded_size=downloaded_size,
@@ -288,6 +291,7 @@ class RequestClient:
                                         file_path=file_path,
                                         filename=filename,
                                         download_speed=download_speed,
+                                        total_size=total_size,
                                     )
                                 else:
                                     raise TypeError(
@@ -304,6 +308,7 @@ class RequestClient:
                         time_passed=round(time() - start_at, 2),
                         file_path=file_path,
                         filename=filename,
+                        total_size=path.getsize(file_path)
                     )
                 else:
                     (options.get("done_callback"))(
@@ -312,6 +317,7 @@ class RequestClient:
                         time_passed=round(time() - start_at, 2),
                         file_path=file_path,
                         filename=filename,
+                        total_size=path.getsize(file_path)
                     )
         except Exception as exc:
             raise exc

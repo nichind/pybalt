@@ -1,5 +1,4 @@
 from pathlib import Path
-from .misc import lprint
 import ffmpeg
 
 
@@ -7,13 +6,15 @@ class Remuxer:
     @classmethod
     def remux(self, path: Path) -> Path:
         output = path.with_name(f"remuxed_{path.name}")
-        lprint(f"Remuxing {path} to {output} ...", end="\r")
+        if output.exists():
+            output.unlink()
+        print(f"Remuxing {path.name} to {output}", end="\r")
         try:
             ffmpeg.input(str(path)).output(str(output)).run(quiet=True)
         except ffmpeg.Error as e:
-            lprint(f"Remuxing {path} to {output} failed: {e}")
+            print(f"Remuxing {path.name} to {output} failed: {e}")
             return path
-        lprint(f"Remuxed {path} to {output}")
+        print(f"Remuxed {path.name} to {output}, size: {output.stat().st_size / 1024 / 1024 : .2f} MB")
         return output
 
 

@@ -1,6 +1,7 @@
 from os import path, getenv
 from typing import TypedDict, Unpack
 from shutil import get_terminal_size
+from time import time
 
 
 class Translator:
@@ -69,16 +70,21 @@ class _DownloadCallbackData(TypedDict):
     time_passed: int | float
     file_path: str
     download_speed: int
+    total_size: int
 
 
 class DefaultCallbacks:
     @classmethod
     async def status_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
         lprint(
-            f"Downloading {data['filename']} | time passed: {data['time_passed']}s, {data['downloaded_size'] / 1024 / 1024 : .2f} MB | {data['download_speed'] / 1024 / 1024 : .2f} MB/s",
+            f"Downloading {data.get('filename')} | time passed: {int(time() - data.get('start_at'))}s, "
+            f"{data.get('downloaded_size') / 1024 / 1024 : .2f} MB | "
+            f"{data.get('download_speed') / 1024 : .2f} KB/s | "
+            f"{data.get('total_size', -1) / 1024 / 1024 : .2f} MB total",
             end="\r",
         )
 
     @classmethod
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
-        lprint(f"Downloaded {data['filename']} to {data['file_path']}")
+        file_size = path.getsize(data['file_path']) / (1024 * 1024)
+        lprint(f"Downloaded {data['file_path']}, size: {file_size:.2f} MB")
