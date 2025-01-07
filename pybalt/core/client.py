@@ -7,6 +7,7 @@ from time import time
 from os import path, getenv, makedirs
 from . import exceptions
 from aiofiles import open as aopen
+from pathlib import Path
 
 
 class Response:
@@ -168,7 +169,7 @@ class RequestClient:
     async def download_from_url(
         self,
         **options: Unpack[_DownloadOptions],
-    ) -> str:
+    ) -> Path:
         start_at = int(time())
         downloaded_size = 0
         destination_folder = options.get(
@@ -193,8 +194,10 @@ class RequestClient:
                 options.get("url"),
             ) as resp:
                 if resp.status.__str__()[0] in ["4", "5"]:
-                    raise exceptions.DownloadError("Failed to download file, status code: " + resp.status.__str__())
-                total_size = int(resp.headers.get("Content-Length", 0))
+                    raise exceptions.DownloadError(
+                        "Failed to download file, status code: " + resp.status.__str__()
+                    )
+                total_size = int(resp.headers.get("Content-Length", -1))
                 filename = options.get(
                     "filename",
                     (
@@ -213,35 +216,34 @@ class RequestClient:
                 async with aopen(file_path, "wb") as f:
                     last_callback = 0
                     last_size = 0
-                    freeze_start_time = None
+                    download_speed = 0
+                    last_callback = time()
+                    print("length", total_size)
                     while True:
-                        chunk = await resp.content.read(1024 * 64)
-                        if not chunk:
-                            break
+                        if total_size == -1:
+                            chunk = await resp.content.read()
+                            if not chunk:
+                                break
+                        else:
+                            chunk = resp.content.read_nowait()
                         await f.write(chunk)
                         downloaded_size += len(chunk)
-                        if time() - last_callback >= 1:
-                            download_speed = (downloaded_size - last_size) / (
-                                time() - last_callback
-                            )
-                            last_size = downloaded_size
-                            last_callback = time()
+                        download_speed = (downloaded_size - last_size) / (
+                            time() - last_callback
+                            if time() - last_callback > 0
+                            else 0.01
+                        )
+                        last_size = downloaded_size
+                        if downloaded_size >= total_size and total_size != -1:
+                            break
+                        if time() - last_callback >= 0.345:
                             lprint(
-                                f"Downloading {filename} | time passed: {round(time() - start_at, 2)}s, "
-                                f"{downloaded_size / 1024 / 1024 : .2f} MB | "
+                                f"Downloading {filename} | time passed: {int(time() - start_at)}s, "
+                                f"{downloaded_size / 1024 / 1024 : .2f} MB | kek"
                                 f"{download_speed / 1024 : .2f} KB/s | "
                                 f"{total_size / 1024 / 1024 : .2f} MB total",
                                 end="\r",
                             )
-                            if download_speed == 0:
-                                if freeze_start_time is None:
-                                    freeze_start_time = time()
-                                elif time() - freeze_start_time > options.get("freeze_timeout", 30):
-                                    if options.get("raise_on_freeze", True):
-                                        raise exceptions.DownloadError("Download freezed for too long")
-                            else:
-                                freeze_start_time = None
-
                             if iscoroutinefunction(options.get("status_callback")):
                                 await (options.get("status_callback"))(
                                     downloaded_size=downloaded_size,
@@ -291,10 +293,9 @@ class RequestClient:
                                     raise TypeError(
                                         "status_parent must be dict or StatusParent"
                                     )
+                            last_callback = time()
             if downloaded_size <= 1024:
-                raise exceptions.DownloadError(
-                    "Download failed, no data received"
-                )
+                raise exceptions.DownloadError("Download failed, no data received")
             if options.get("done_callback", None):
                 if iscoroutinefunction(options.get("done_callback")):
                     await (options.get("done_callback"))(
@@ -317,7 +318,7 @@ class RequestClient:
         finally:
             if options.get("close", True):
                 await session.close()
-        return file_path
+        return Path(file_path)
 
     def __setattr__(self, name, value):
         self.__dict__[name] = value

@@ -33,10 +33,19 @@ class Terminal:
 
     @classmethod
     def lprint(cls, text: str, lend: str = "", **kwargs) -> None:
+        text = str(text)
         if len(text) >= cls.get_size()[0]:
-            text = text[: cls.get_size()[0] - (3 + (len(lend) + 1 if lend else 0))] + "..." + (" " + lend if lend else "")
+            text = (
+                text[: cls.get_size()[0] - (3 + (len(lend) + 1 if lend else 0))]
+                + "..."
+                + (" " + lend if lend else "")
+            )
         else:
-            text = text + " " * (cls.get_size()[0] - len(text) - (len(lend) + 1 if lend else 0)) + (lend if lend else "")
+            text = (
+                text
+                + " " * (cls.get_size()[0] - len(text) - (len(lend) + 1 if lend else 0))
+                + (lend if lend else "")
+            )
         print(text, **kwargs)
 
 

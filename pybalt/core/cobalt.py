@@ -14,7 +14,7 @@ from typing import (
     Coroutine,
     Callable,
 )
-from .misc import Translator
+from .misc import Translator, lprint
 from .client import RequestClient, _DownloadOptions
 from .constants import (
     FALLBACK_INSTANCE,
@@ -24,6 +24,8 @@ from .constants import (
 )
 from . import exceptions
 from time import time
+from pathlib import Path
+from .remux import remux
 import re
 
 
@@ -82,6 +84,7 @@ class _CobaltDownloadOptions(TypedDict, total=False):
     status_parent: str
     headers: Dict[str, str]
     timeout: int
+    remux: bool
 
 
 class Tunnel:
@@ -120,12 +123,17 @@ class Tunnel:
         self.filename = data.get("filename", None)
         self.extension = self.filename.split(".")[-1]
 
-    async def download(self, **body: Unpack[_DownloadOptions]):
+    async def download(
+        self, _remux: bool = False, **body: Unpack[_DownloadOptions]
+    ) -> Path:
         if "url" not in body:
             body["url"] = self.url
         if "filename" not in body:
             body["filename"] = self.filename
-        return await self.instance.parent.request_client.download_from_url(**body)
+        file_path = await self.instance.parent.request_client.download_from_url(**body)
+        if remux:
+            file_path = remux(file_path)
+        return file_path
 
     def __repr__(self):
         return (
@@ -268,12 +276,14 @@ class Cobalt:
         self.get = self.request_client.get
         self.post = self.request_client.post
         self.debug = (
-            (lambda *args, **kwargs: print(*args, **kwargs))
+            (lambda *args, **kwargs: lprint(*args, **kwargs))
             if params.get("debug", getenv("COBALT_DEBUG", False))
             else lambda *args, **kwargs: ...
         )
         self.local_instance = Instance(
-            url=getenv("COBALT_LOCAL_INSTANCE", "http://127.0.0.1:9000"), api_key=getenv("COBALT_LOCAL_INSTANCE_API_KEY", None), parent=self
+            url=getenv("COBALT_LOCAL_INSTANCE", "http://127.0.0.1:9000"),
+            api_key=getenv("COBALT_LOCAL_INSTANCE_API_KEY", None),
+            parent=self,
         )
 
     async def fetch_instances(self) -> List[Instance]:
@@ -287,24 +297,40 @@ class Cobalt:
                 Instance(parent=self, **instance) for instance in instances
             ] + [self.fallback_instance]
             try:
-                self.debug("Fetching local instance info...")
+                self.debug("Fetching local instance info...", end="\r")
                 await self.local_instance.get_instance_info()
                 self.instances += [self.local_instance]
             except Exception:
                 self.debug("Didn't find local instance, skipping")
             return self.instances
         except Exception as exc:
-            raise exceptions.FetchError(f"Failed to fetch instances: {exc}")
+            self.debug(f"Failed to fetch instances: {exc}")
+            self.instances = [self.fallback_instance]
+            return self.instances
 
     async def download(
         self, url: Union[str, Tunnel], **body: Unpack[_CobaltDownloadOptions]
-    ):
+    ) -> Path:
         if isinstance(url, Tunnel):
             return await self.request_client.download_from_url(url=url, **body)
         for instance in await self.fetch_instances():
             try:
-                tunnel = await instance.get_tunnel(url=url, **body)
-                return await tunnel.download(**body)
+                tunnel = await instance.get_tunnel(
+                    url=url,
+                    **{
+                        key: value
+                        for key, value in body.items()
+                        if key in _CobaltBodyOptions.__annotations__.keys()
+                    },
+                )
+                return await tunnel.download(
+                    _remux=body.get("remux", False),
+                    **{
+                        key: value
+                        for key, value in body.items()
+                        if key in _CobaltDownloadOptions.__annotations__.keys()
+                    },
+                )
             except Exception as exc:
                 self.debug(exc)
         raise exceptions.AllInstancesFailed(
