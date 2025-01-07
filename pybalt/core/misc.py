@@ -56,17 +56,18 @@ def install_cobalt_container() -> None:
     def install_docker_linux():
         print("Installing Docker Engine on Linux...")
         try:
-            if platform.dist()[0].lower() in ('ubuntu', 'debian'):
+            distro = platform.freedesktop_os_release().get("ID", None)
+            if distro in ('ubuntu', 'debian'):
                 subprocess.run(['sudo', 'apt', 'update'], check=True)
                 subprocess.run(['sudo', 'apt', 'install', '-y', 'docker.io'], check=True)
                 subprocess.run(['sudo', 'systemctl', 'enable', 'docker', '--now'], check=True)
                 print("Docker Engine Installation complete")
-            elif platform.dist()[0].lower() in ('centos', 'fedora', 'rhel'):
+            elif distro in ('centos', 'fedora', 'rhel'):
                 subprocess.run(['sudo', 'yum', 'update', '-y'], check=True)
                 subprocess.run(['sudo', 'yum', 'install', '-y', 'docker'], check=True)
                 subprocess.run(['sudo', 'systemctl', 'enable', 'docker', '--now'], check=True)
                 print("Docker Engine Installation complete")
-            elif platform.dist()[0].lower() in ('arch'):
+            elif distro in ('arch'):
                 subprocess.run(['sudo', 'pacman', '-Syu', '--noconfirm'], check=True)
                 subprocess.run(['sudo', 'pacman', '-S', '--noconfirm', 'docker'], check=True)
                 subprocess.run(['sudo', 'systemctl', 'enable', 'docker', '--now'], check=True)
@@ -75,7 +76,7 @@ def install_cobalt_container() -> None:
                 print("Unsupported Linux distribution. Please install docker by hand.")
                 return
         except subprocess.CalledProcessError:
-            print("Error during installation on Linux. Please check requirements and logs.")
+            print("Error during installation on Linux. Please install docker by hand.")
             return
 
     while True:
