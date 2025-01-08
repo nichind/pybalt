@@ -10,7 +10,7 @@ class Remuxer:
     def remux(cls, path: Path | str) -> Path:
         if isinstance(path, str):
             path = Path(path)
-        output = path.with_name(f"remuxed_{path.name}")
+        output = path.with_name(f"rmx_{path.name}")
         progress_file = Path(os.path.join(os.path.expanduser("~"), ".config", "cobalt", f"{path.name if len(path.name) <= 20 else path.name[:8] + '...' + path.name[:8]}" + ".log"))
         if progress_file.exists():
             progress_file.unlink()
