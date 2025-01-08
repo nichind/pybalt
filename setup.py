@@ -51,5 +51,4 @@ setup(
             "cobalt=pybalt.__main__:main",
         ],
     },
-    extras_require={"remux": ["ffmpeg-python==0.2.0"]},
 )

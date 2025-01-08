@@ -29,48 +29,87 @@ class Translator:
 
 
 def install_cobalt_container() -> None:
+    """
+    Installs and starts a local Cobalt instance using Docker.
+
+    This function checks if Docker is installed on the system and installs it if not.
+    It handles different installation procedures for Windows, and Linux.
+    After ensuring Docker is installed, it downloads a docker-compose file and
+    starts the Cobalt instance.
+
+    The function prompts the user for confirmation before proceeding with the
+    installation process.
+
+    Note: The user may need to manually install Docker on unsupported operating
+    systems or distributions.
+
+    Raises:
+        subprocess.CalledProcessError: If a command execution fails.
+    """
+
     import platform
     import subprocess
-    
+
     def is_docker_installed():
         try:
-            subprocess.run(['docker', '--version'], check=True, capture_output=True)
+            subprocess.run(["docker", "--version"], check=True, capture_output=True)
             return True
         except (FileNotFoundError, subprocess.CalledProcessError):
             return False
-    
+
     def install_docker_windows():
         print("Installing Docker Desktop on Windows...")
-        # Install via a simple way, we should consider using chocolatey or winGet
-        subprocess.run(['start', '', '/wait', 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'], shell=True, check=True)
+        subprocess.run(
+            [
+                "start",
+                "",
+                "/wait",
+                "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe",
+            ],
+            shell=True,
+            check=True,
+        )
         print("Docker Desktop Installation complete")
         print("You might need to configure WSL2 if is not set")
         print("Please complete the setup process. Restart may be required.")
-    
+
     def install_docker_macos():
         print("Installing Docker Desktop on macOS...")
-        subprocess.run(['open', '-W', 'https://desktop.docker.com/mac/main/amd64/Docker.dmg'], check=True)
+        subprocess.run(
+            ["open", "-W", "https://desktop.docker.com/mac/main/amd64/Docker.dmg"],
+            check=True,
+        )
         print("Docker Desktop Installation complete")
-        print("Please complete the setup process. Restart may be required.")    
+        print("Please complete the setup process. Restart may be required.")
 
     def install_docker_linux():
         print("Installing Docker Engine on Linux...")
         try:
             distro = platform.freedesktop_os_release().get("ID", None)
-            if distro in ('ubuntu', 'debian'):
-                subprocess.run(['sudo', 'apt', 'update'], check=True)
-                subprocess.run(['sudo', 'apt', 'install', '-y', 'docker.io'], check=True)
-                subprocess.run(['sudo', 'systemctl', 'enable', 'docker', '--now'], check=True)
+            if distro in ("ubuntu", "debian"):
+                subprocess.run(["sudo", "apt", "update"], check=True)
+                subprocess.run(
+                    ["sudo", "apt", "install", "-y", "docker.io"], check=True
+                )
+                subprocess.run(
+                    ["sudo", "systemctl", "enable", "docker", "--now"], check=True
+                )
                 print("Docker Engine Installation complete")
-            elif distro in ('centos', 'fedora', 'rhel'):
-                subprocess.run(['sudo', 'yum', 'update', '-y'], check=True)
-                subprocess.run(['sudo', 'yum', 'install', '-y', 'docker'], check=True)
-                subprocess.run(['sudo', 'systemctl', 'enable', 'docker', '--now'], check=True)
+            elif distro in ("centos", "fedora", "rhel"):
+                subprocess.run(["sudo", "yum", "update", "-y"], check=True)
+                subprocess.run(["sudo", "yum", "install", "-y", "docker"], check=True)
+                subprocess.run(
+                    ["sudo", "systemctl", "enable", "docker", "--now"], check=True
+                )
                 print("Docker Engine Installation complete")
-            elif distro in ('arch'):
-                subprocess.run(['sudo', 'pacman', '-Syu', '--noconfirm'], check=True)
-                subprocess.run(['sudo', 'pacman', '-S', '--noconfirm', 'docker'], check=True)
-                subprocess.run(['sudo', 'systemctl', 'enable', 'docker', '--now'], check=True)
+            elif distro in ("arch"):
+                subprocess.run(["sudo", "pacman", "-Syu", "--noconfirm"], check=True)
+                subprocess.run(
+                    ["sudo", "pacman", "-S", "--noconfirm", "docker"], check=True
+                )
+                subprocess.run(
+                    ["sudo", "systemctl", "enable", "docker", "--now"], check=True
+                )
                 print("Docker Engine Installation complete")
             else:
                 print("Unsupported Linux distribution. Please install docker by hand.")
@@ -80,17 +119,21 @@ def install_cobalt_container() -> None:
             return
 
     while True:
-        inp = str(input("You sure you want to install local cobalt instance? (y/n): ")).lower()
+        inp = str(
+            input("You sure you want to install local cobalt instance? (y/n): ")
+        ).lower()
         if inp == "y":
             break
         elif inp == "n":
             return
     cobalt_config_dir = path.join(path.expanduser("~"), ".config", "cobalt")
     if not path.exists(cobalt_config_dir):
-        makedirs(cobalt_config_dir)
-        
+        makedirs(cobalt_config_dir, exist_ok=True)
+
     if not is_docker_installed():
-        inp = str(input("Docker is not installed. Do you want me to install it? (y/n): ")).lower()
+        inp = str(
+            input("Docker is not installed. Do you want me to install it? (y/n): ")
+        ).lower()
         if inp == "y":
             os_name = platform.system()
             if os_name == "Windows":
@@ -100,18 +143,29 @@ def install_cobalt_container() -> None:
             elif os_name == "Linux":
                 install_docker_linux()
             else:
-                print("Unsupported operating system: " + os_name, " Please install docker by hand.")
-            print("Docker installation complete, you might need to restart your computer.")
+                print(
+                    "Unsupported operating system: " + os_name,
+                    " Please install docker by hand.",
+                )
+            print(
+                "Docker installation complete, you might need to restart your computer."
+            )
         else:
             print("Please install docker by hand.")
             return
-        
+
     with open(path.join(cobalt_config_dir, "docker-compose.yml"), "w+") as compose:
-        compose.write(get("https://raw.githubusercontent.com/imputnet/cobalt/refs/heads/main/docs/examples/docker-compose.example.yml").text)
-        
-    subprocess.run(['docker', 'compose', 'up', '-d'], check=True, cwd=cobalt_config_dir)
+        compose.write(
+            get(
+                "https://raw.githubusercontent.com/imputnet/cobalt/refs/heads/main/docs/examples/docker-compose.example.yml"
+            ).text
+        )
+
+    subprocess.run(["docker", "compose", "up", "-d"], check=True, cwd=cobalt_config_dir)
     print("Cobalt instance has been installed and started.")
-    print("If setup was successful, you can find the local cobalt instance at http://localhost:9000")
+    print(
+        "If setup was successful, you can find the local cobalt instance at http://localhost:9000"
+    )
 
 
 class Terminal:
@@ -173,5 +227,5 @@ class DefaultCallbacks:
 
     @classmethod
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
-        file_size = path.getsize(data['file_path']) / (1024 * 1024)
+        file_size = path.getsize(data["file_path"]) / (1024 * 1024)
         lprint(f"Downloaded {data['file_path']}, size: {file_size:.2f} MB")

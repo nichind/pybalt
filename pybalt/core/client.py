@@ -225,9 +225,8 @@ class RequestClient:
                                 break
                         else:
                             chunk = resp.content.read_nowait()
-                        if chunk:
-                            await f.write(chunk)
-                            downloaded_size += len(chunk)
+                        await f.write(chunk)
+                        downloaded_size += len(chunk)
                         if downloaded_size >= total_size and total_size != -1:
                             break
                         if time() - last_callback >= 0.345:
@@ -308,7 +307,7 @@ class RequestClient:
                         time_passed=round(time() - start_at, 2),
                         file_path=file_path,
                         filename=filename,
-                        total_size=path.getsize(file_path)
+                        total_size=path.getsize(file_path),
                     )
                 else:
                     (options.get("done_callback"))(
@@ -317,7 +316,7 @@ class RequestClient:
                         time_passed=round(time() - start_at, 2),
                         file_path=file_path,
                         filename=filename,
-                        total_size=path.getsize(file_path)
+                        total_size=path.getsize(file_path),
                     )
         except Exception as exc:
             raise exc
