@@ -131,7 +131,7 @@ class Tunnel:
         if "filename" not in body:
             body["filename"] = self.filename
         file_path = await self.instance.parent.request_client.download_from_url(**body)
-        if remux:
+        if _remux:
             file_path = remux(file_path)
         return file_path
 
@@ -370,6 +370,9 @@ class Cobalt:
 class Downloader:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
+
+download = Cobalt().download
 
 
 load_dotenv()

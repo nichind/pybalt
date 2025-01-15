@@ -5,6 +5,16 @@ from requests import get
 from time import time
 
 
+def get_cobalt_config_dir() -> str:
+    _ = path.join(path.expanduser("~"), ".config", "cobalt")
+    if not path.exists(_):
+        makedirs(_, exist_ok=True)
+    return _
+
+
+cobalt_config_dir = get_cobalt_config_dir()
+
+
 class Translator:
     language = getenv("LANG", "en")[:2]
 
@@ -126,9 +136,6 @@ def install_cobalt_container() -> None:
             break
         elif inp == "n":
             return
-    cobalt_config_dir = path.join(path.expanduser("~"), ".config", "cobalt")
-    if not path.exists(cobalt_config_dir):
-        makedirs(cobalt_config_dir, exist_ok=True)
 
     if not is_docker_installed():
         inp = str(
