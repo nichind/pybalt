@@ -7,7 +7,7 @@ import os
 
 class Remuxer:
     @classmethod
-    def remux(cls, path: Path | str) -> Path:
+    def remux(cls, path: Path | str, keep_original: bool = False) -> Path:
         if isinstance(path, str):
             path = Path(path)
         output = path.with_name(f"rmx_{path.name}")
@@ -43,6 +43,9 @@ class Remuxer:
             return path
         if progress_file.exists():
             progress_file.unlink()
+        if not keep_original:
+            path.unlink()
+            output = output.rename(path)
         print(f"Remux result: {output}")
         return output
 

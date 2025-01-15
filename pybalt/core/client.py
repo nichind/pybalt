@@ -220,7 +220,7 @@ class RequestClient:
                     last_callback = time()
                     while True:
                         if total_size == -1:
-                            chunk = await resp.content.read()
+                            chunk = await resp.content.read(1024 * 4)
                             if not chunk:
                                 break
                         else:
