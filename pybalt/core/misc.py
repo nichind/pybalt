@@ -3,6 +3,8 @@ from typing import TypedDict, Unpack
 from shutil import get_terminal_size
 from requests import get
 from time import time
+from rich.console import Console
+import re
 
 
 def get_cobalt_config_dir() -> str:
@@ -176,26 +178,81 @@ def install_cobalt_container() -> None:
 
 
 class Terminal:
+    console = Console()
+
     @classmethod
     def get_size(cls) -> tuple[int, int]:
         return get_terminal_size()
 
     @classmethod
+    def apply_style(cls, text: str) -> str:
+        return (
+            text.replace(":accent:", "\033[96m")
+            .replace(":reset:", "\033[0m")
+            .replace(":end:", "\033[0m")
+            .replace(":bold:", "\033[1m")
+            .replace(":underline:", "\033[4m")
+            .replace(":italic:", "\033[3m")
+            .replace(":strikethrough:", "\033[9m")
+            .replace(":red:", "\033[31m")
+            .replace(":green:", "\033[32m")
+            .replace(":yellow:", "\033[33m")
+            .replace(":blue:", "\033[34m")
+            .replace(":magenta:", "\033[35m")
+            .replace(":cyan:", "\033[36m")
+            .replace(":white:", "\033[37m")
+            .replace(":gray:", "\033[90m")
+            .replace(":bg_red:", "\033[41m")
+            .replace(":bg_green:", "\033[42m")
+            .replace(":bg_yellow:", "\033[43m")
+            .replace(":bg_blue:", "\033[44m")
+            .replace(":bg_magenta:", "\033[45m")
+            .replace(":bg_cyan:", "\033[46m")
+            .replace(":bg_white:", "\033[47m")
+        )
+
+    @classmethod
     def lprint(cls, text: str, lend: str = "", **kwargs) -> None:
         text = str(text)
-        if len(text) >= cls.get_size()[0]:
+        lend = str(lend)
+        start_lenght = len(text)
+        end_lenght = len(lend)
+        pattern = re.compile(
+            r"[\x1b\x9b\x9f][\[\]()\\]*[0-?]*[ -/]*[@-~]"
+            r"|["
+            "\U00010000-\U0010ffff"
+            "\u200d"
+            "\u2640-\u2642"
+            "\u2600-\u2b55"
+            "\u23cf"
+            "\u23e9"
+            "\u231a"
+            "\ufe0f"  # dingbats
+            "\u3030"
+            "]+",
+            flags=re.UNICODE,
+        )
+        text = cls.apply_style(text)
+        lend = cls.apply_style(lend)
+        start_lenght -= len(pattern.findall(text))
+        end_lenght -= len(pattern.findall(lend))
+
+        if start_lenght >= cls.get_size()[0]:
             text = (
-                text[: cls.get_size()[0] - (3 + (len(lend) + 1 if lend else 0))]
+                text[: cls.get_size()[0] - (3 + (end_lenght + 1 if lend else 0))]
                 + "..."
                 + (" " + lend if lend else "")
             )
         else:
             text = (
                 text
-                + " " * (cls.get_size()[0] - len(text) - (len(lend) + 1 if lend else 0))
+                + " "
+                * (cls.get_size()[0] - start_lenght - (end_lenght + 1 if lend else 0))
                 + (lend if lend else "")
             )
-        print(text, **kwargs)
+        if "highlight" not in kwargs:
+            kwargs["highlight"] = False
+        cls.console.print(text, **kwargs)
 
 
 lprint = Terminal.lprint
@@ -219,20 +276,35 @@ class _DownloadCallbackData(TypedDict):
     file_path: str
     download_speed: int
     total_size: int
+    iteration: int
+    eta: int
 
 
 class DefaultCallbacks:
     @classmethod
     async def status_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
-        lprint(
-            f"Downloading {data.get('filename')} | time passed: {int(time() - data.get('start_at'))}s, "
-            f"{data.get('downloaded_size') / 1024 / 1024 : .2f} MB | "
-            f"{data.get('download_speed') / 1024 : .2f} KB/s | "
-            f"{data.get('total_size', -1) / 1024 / 1024 : .2f} MB total",
-            end="\r",
+        percent_downloaded = (
+            int((data.get("downloaded_size") / data.get("total_size")) * 100)
+            if data.get("total_size", -1) != -1
+            else -1
         )
+        if percent_downloaded != -1:
+            bar_length = 20
+            completed_length = int(round(bar_length * percent_downloaded / float(100)))
+            bar_fill = "▇" * completed_length
+            bar_empty = "-" * (bar_length - completed_length)
+            lprint(
+                f"⭳ {data.get('filename')} :white:[:accent:{bar_fill}:gray:{bar_empty}:white:]:end: :accent:{percent_downloaded}:gray:/:white:100:end: eta: :accent:{data.get('eta')}s:end:",
+                end="\r",
+                highlight=False,
+            )
+        else:
+            lprint(
+                f"⭳ Downloading {data.get('filename')} | time passed: {int(time() - data.get('start_at'))}s",
+                end="\r",
+            )
 
     @classmethod
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
         file_size = path.getsize(data["file_path"]) / (1024 * 1024)
-        lprint(f"Downloaded {data['file_path']}, size: {file_size:.2f} MB")
+        lprint(f":rocket: Downloaded {data['file_path']}, size: {file_size:.2f} MB")

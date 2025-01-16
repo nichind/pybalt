@@ -323,7 +323,9 @@ class Cobalt:
                         if key in _CobaltBodyOptions.__annotations__.keys()
                     },
                 )
-                self.debug(f"Tunnel created, instance: {instance.url}, tunnel url: {tunnel.url}")
+                self.debug(
+                    f"Tunnel created, instance: {instance.url}, tunnel url: {tunnel.url}"
+                )
                 return await tunnel.download(
                     _remux=body.get("remux", False),
                     **{

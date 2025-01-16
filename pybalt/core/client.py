@@ -36,6 +36,7 @@ class _DownloadOptions(TypedDict, total=False):
     timeout: int
     callback_rate: int
     proxy: str
+    max_speed: int
 
 
 class RequestClient:
@@ -175,12 +176,12 @@ class RequestClient:
         destination_folder = options.get(
             "folder_path", getenv("COBALT_DOWNLOAD_FOLDER", None)
         ) or path.join(path.expanduser("~"), "Downloads")
+        if "status_callback" not in options.keys():
+            options["status_callback"] = DefaultCallbacks.status_callback
+        if "done_callback" not in options.keys():
+            options["done_callback"] = DefaultCallbacks.done_callback
         if not path.exists(destination_folder):
             makedirs(destination_folder)
-        if not options.get("status_callback"):
-            options["status_callback"] = DefaultCallbacks.status_callback
-        if not options.get("done_callback"):
-            options["done_callback"] = DefaultCallbacks.done_callback
         session = (
             ClientSession(
                 headers=options.get("headers", self.headers),
@@ -217,10 +218,12 @@ class RequestClient:
                     last_callback = 0
                     last_size = 0
                     download_speed = 0
+                    iteration = 0
                     last_callback = time()
+                    max_speed = options.get("max_speed")
                     while True:
                         if total_size == -1:
-                            chunk = await resp.content.read(1024 * 4)
+                            chunk = await resp.content.read(max_speed or 1024 * 4)
                             if not chunk:
                                 break
                         else:
@@ -229,14 +232,21 @@ class RequestClient:
                         downloaded_size += len(chunk)
                         if downloaded_size >= total_size and total_size != -1:
                             break
-                        if time() - last_callback >= 0.345:
+                        if time() - last_callback >= options.get(
+                            "callback_rate", 0.369
+                        ):
                             download_speed = (downloaded_size - last_size) / (
                                 time() - last_callback
                                 if time() - last_callback > 0
                                 else 0.01
                             )
+                            eta = (
+                                (total_size - downloaded_size) / download_speed
+                                if download_speed != 0
+                                else 0
+                            )
                             last_size = downloaded_size
-                            if options.get("status_parent", None) is not None:
+                            if options.get("status_callback", None) is not None:
                                 if iscoroutinefunction(options.get("status_callback")):
                                     await (options.get("status_callback"))(
                                         downloaded_size=downloaded_size,
@@ -246,6 +256,8 @@ class RequestClient:
                                         filename=filename,
                                         download_speed=download_speed,
                                         total_size=total_size,
+                                        iteration=iteration,
+                                        eta=round(eta),
                                     )
                                 else:
                                     (options.get("status_callback"))(
@@ -256,15 +268,9 @@ class RequestClient:
                                         filename=filename,
                                         download_speed=download_speed,
                                         total_size=total_size,
+                                        iteration=iteration,
+                                        eta=round(eta),
                                     )
-                            else:
-                                lprint(
-                                    f"Downloading {filename} | time passed: {int(time() - start_at)}s, "
-                                    f"{downloaded_size / 1024 / 1024 : .2f} MB | "
-                                    f"{download_speed / 1024 : .2f} KB/s | "
-                                    f"{total_size / 1024 / 1024 : .2f} MB total",
-                                    end="\r",
-                                )
                             if options.get("status_parent", None):
                                 if isinstance(
                                     options.get("status_parent"), StatusParent
@@ -297,6 +303,11 @@ class RequestClient:
                                         "status_parent must be dict or StatusParent"
                                     )
                             last_callback = time()
+                            iteration += 1
+                        if max_speed and len(chunk) > max_speed:
+                            await sleep(
+                                (len(chunk) - max_speed) / (max_speed / 1024 / 1024)
+                            )
             if downloaded_size <= 1024:
                 raise exceptions.DownloadError("Download failed, no data received")
             if options.get("done_callback", None):
