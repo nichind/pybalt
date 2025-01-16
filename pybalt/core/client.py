@@ -227,7 +227,7 @@ class RequestClient:
                             chunk = await resp.content.read(1024*1024)
                             if not chunk:
                                 break
-                            # TODO: Implement non-blocking when connection dropper and total file size is unknown
+                            # TODO: Implement non-blocking way to read buffer when connection is dropped and total file size is unknown
                             # try:
                             #     chunk = await wait_for(
                             #         resp.content.read(1024 * 1024),
