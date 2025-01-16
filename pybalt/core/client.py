@@ -226,7 +226,7 @@ class RequestClient:
                             try:
                                 chunk = await wait_for(
                                     resp.content.read(max_speed or 1024 * 4),
-                                    options.get("callback_rate", 0.256),
+                                    options.get("callback_rate", 0.164),
                                 )
                                 if not chunk:
                                     break
@@ -239,7 +239,7 @@ class RequestClient:
                         if downloaded_size >= total_size and total_size != -1:
                             break
                         if time() - last_callback >= options.get(
-                            "callback_rate", 0.256
+                            "callback_rate", 0.164
                         ):
                             download_speed = (downloaded_size - last_size) / (
                                 time() - last_callback

@@ -194,8 +194,15 @@ class Terminal:
         ":blue:": "\033[34m",
         ":magenta:": "\033[35m",
         ":cyan:": "\033[36m",
+        ":purple:": "\033[35m",
+        ":orange:": "\033[33m",
+        ":pink:": "\033[35m",
+        ":light_gray:": "\033[37m",
+        ":dark_gray:": "\033[90m",
+        ":lime:": "\033[92m",
         ":white:": "\033[37m",
         ":gray:": "\033[90m",
+        ":bg_black:": "\033[40m",
         ":bg_red:": "\033[41m",
         ":bg_green:": "\033[42m",
         ":bg_yellow:": "\033[43m",
@@ -232,6 +239,15 @@ class Terminal:
 
     @classmethod
     def true_len(cls, text: str) -> int:
+        text = cls.apply_style(text)
+        _ = None
+        for i, char in enumerate(text):
+            if char == ':' and not _:
+                _ = i
+            elif char == ":" and _:
+                text = text.replace(text[_ + 1:i], "")
+            elif char == " " and _:
+                _ = None
         return len(
             re.sub(
                 r"[\u001B\u009B][\[\]()#;?]*((([a-zA-Z\d]*(;[-a-zA-Z\d\/#&.:=?%@~_]*)*)?\u0007)|((\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-ntqry=><~]))",
@@ -242,7 +258,7 @@ class Terminal:
 
     @classmethod
     def lprint(cls, *args: str, right: bool = False, **kwargs) -> None:
-        args = [cls.apply_style(str(arg)) for arg in args]
+        args = [cls.apply_style(str(arg) if not isinstance(arg, Exception) else ":red:" + str(arg)) for arg in args]
         terminal_width = cls.get_size()[0]
         num_args = len(args)
         
@@ -258,11 +274,11 @@ class Terminal:
             cls.console.print(" " * ((len(_center) - cls.true_len(_center)) // 2) + _center + cls.apply_style(":end:"), end="\r", highlight=kwargs["highlight"])
             cls.console.print(args[0], end="\r", highlight=kwargs["highlight"])
         elif num_args == 2:
-            cls.console.print(args[1].rjust(terminal_width) + cls.apply_style(":end:"), end="\r", highlight=kwargs["highlight"])
+            print(" " * (terminal_width - cls.true_len(args[1])) + cls.apply_style(args[1]) + cls.apply_style(":end:"), end="\r")
             cls.console.print(args[0] + cls.apply_style(":end:"), end="\r", highlight=kwargs["highlight"])
         else:
             if right:
-                cls.console.print(args[0].rjust(terminal_width), end="\r", highlight=kwargs["highlight"])
+                print(" " * (terminal_width - cls.true_len(args[0])) + cls.apply_style(args[0]) + cls.apply_style(":end:"), end="\r")
             else:
                 cls.console.print(args[0].ljust(terminal_width), end="\r", highlight=kwargs["highlight"])
         cls.console.print(cls.apply_style(":end:"), **kwargs)
@@ -307,7 +323,7 @@ class DefaultCallbacks:
             bar_fill = "▇" * completed_length
             bar_empty = "-" * (bar_length - completed_length)
             lprint(
-                f"⭳ :gray:{data.get('filename')} :white:[:accent:{bar_fill}:gray:{bar_empty}:white:]:end: :accent:{percent_downloaded}:gray:/:white:100:end: eta: :accent:{data.get('eta')}s:end:",
+                f"⭳ :gray:{data.get('filename')} :white:[:green:{bar_fill}:gray:{bar_empty}:white:]:end: :accent:{percent_downloaded}:gray:/:white:100:end: eta: :magenta:{data.get('eta')}s:end:",
                 end="\r",
                 highlight=False,
             )
@@ -316,11 +332,11 @@ class DefaultCallbacks:
             current_spin = spinner[data.get("iteration") % len(spinner)]
             lprint(
                 f"⭳ :gray:{data.get('filename')} ",
-                f":accent:{data.get('downloaded_size') / (1024 * 1024):.2f}:gray:MB :accent:{data.get('download_speed') / (1024 * 1024):.2f}:gray:MB/s :accent:{data.get('time_passed'):.2f}:gray:s :accent:{current_spin}:end:",
+                f":lime:{data.get('downloaded_size') / (1024 * 1024):.2f}MB :magenta:{data.get('download_speed') / (1024 * 1024):.2f}MB/s :cyan:{data.get('time_passed'):.2f}s :white::bold:{current_spin}",
                 end="\r",
             )
 
     @classmethod
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
         file_size = path.getsize(data["file_path"]) / (1024 * 1024)
-        lprint(f":tick: Downloaded {data['file_path']}, size: {file_size:.2f} MB")
+        lprint(f":thumbs_up: Download finished {data['file_path']}, size: {file_size:.2f} MB")

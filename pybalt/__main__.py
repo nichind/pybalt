@@ -1,5 +1,6 @@
 from asyncio import run
 from .core.cobalt import _CobaltDownloadOptions, _CobaltParameters, Cobalt
+from typing import _LiteralGenericAlias
 import argparse
 
 
@@ -11,6 +12,7 @@ for key, value in _CobaltDownloadOptions.__annotations__.items():
             f"-{key[0]}{''.join([x if x.isupper() or (i > 0 and key[i-1] == '_') else '' for i, x in enumerate(key)])}",
             f"--{key}",
             type=value,
+            choices=None if not isinstance(value, _LiteralGenericAlias) else value.__args__,
         )
     except argparse.ArgumentError:
         parser.add_argument(f"--{key}", type=value)
@@ -19,7 +21,6 @@ for key, value in _CobaltParameters.__annotations__.items():
         parser.add_argument(f"--{key}", type=value)
     except Exception:
         pass
-
 
 async def _():
     args = parser.parse_args()

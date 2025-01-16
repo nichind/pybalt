@@ -102,7 +102,7 @@ class Tunnel:
         self,
         data: dict,
         instance: "Instance" = None,
-        auto_download: dict = _CobaltDownloadOptions,
+        auto_download: Unpack[_CobaltDownloadOptions] = None,
     ):
         url = data.get("url", None)
         if not url:
@@ -276,7 +276,15 @@ class Cobalt:
         self.get = self.request_client.get
         self.post = self.request_client.post
         self.debug = (
-            (lambda *args, **kwargs: lprint(*args, **kwargs))
+            (
+                lambda *args, **kwargs: lprint(
+                    *[
+                        ":gray:ⓓ " + str(arg) if not isinstance(arg, Exception) else ":red:ⓔ " + str(arg)
+                        for arg in args
+                    ],
+                    **kwargs,
+                )
+            )
             if params.get("debug", getenv("COBALT_DEBUG", False))
             else lambda *args, **kwargs: ...
         )
@@ -302,6 +310,7 @@ class Cobalt:
                 self.instances += [self.local_instance]
             except Exception:
                 self.debug("Didn't find local instance, skipping")
+            self.debug(f"Fetched {len(self.instances)} instances")
             return self.instances
         except Exception as exc:
             self.debug(f"Failed to fetch instances: {exc}")
