@@ -25,7 +25,7 @@ class Remuxer:
         os.makedirs(progress_file.parent.resolve(), exist_ok=True)
         if output.exists():
             output.unlink()
-        print(f"Remuxing {path.name} to {output}", end="\r")
+        lprint(f"Remuxing {path.name}", end="\r")
         try:
             Popen(
                 [
@@ -63,19 +63,21 @@ class Remuxer:
                         data.update({key: value})
                 if data.get("progress", "") == "end":
                     break
-                print(
-                    f'Remuxing status: {data.get("progress", "unknown")}, speed: {data.get("speed", "0.00x")}, fps: {data.get("fps", "0.00")}, frame: {data.get("frame", "0")}',
+                lprint(
+                    f'Remuxing status: {data.get("progress", "unknown")} :cyan:speed: {data.get("speed", "0.00x")} :green:{data.get("fps", "0.00")}fps :yellow:frame {data.get("frame", "0")}',
                     end="\r",
                 )
         except Exception as e:
-            lprint(f"Remuxing {path.name} to {output} failed: {e}")
+            lprint(f":red:Remuxing {path.name} to {output} failed: {e}")
             return path
         if progress_file.exists():
             progress_file.unlink()
         if not keep_original:
             path.unlink()
             output = output.rename(path)
-        lprint(f":bold:Remux result: {output}:end:")
+        lprint(
+            f":red:Remux result: :white:{output} :green:{output.stat().st_size / 1024 / 1024:.2f}MB"
+        )
         return output
 
 

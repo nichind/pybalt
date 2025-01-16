@@ -242,10 +242,10 @@ class Terminal:
         text = cls.apply_style(text)
         _ = None
         for i, char in enumerate(text):
-            if char == ':' and not _:
+            if char == ":" and not _:
                 _ = i
             elif char == ":" and _:
-                text = text.replace(text[_ + 1:i], "")
+                text = text.replace(text[_ + 1 : i], "")
             elif char == " " and _:
                 _ = None
         return len(
@@ -258,10 +258,15 @@ class Terminal:
 
     @classmethod
     def lprint(cls, *args: str, right: bool = False, **kwargs) -> None:
-        args = [cls.apply_style(str(arg) if not isinstance(arg, Exception) else ":red:" + str(arg)) for arg in args]
+        args = [
+            cls.apply_style(
+                str(arg) if not isinstance(arg, Exception) else ":red:" + str(arg)
+            )
+            for arg in args
+        ]
         terminal_width = cls.get_size()[0]
         num_args = len(args)
-        
+
         if "highlight" not in kwargs:
             kwargs["highlight"] = False
 
@@ -270,21 +275,52 @@ class Terminal:
 
         if num_args == 3:
             _center = args[1].center(terminal_width).rstrip()
-            print(" " * (terminal_width - cls.true_len(args[2])) + cls.apply_style(args[2]) + cls.apply_style(":end:"), end="\r")
-            cls.console.print(" " * ((len(_center) - cls.true_len(_center)) // 2) + _center + cls.apply_style(":end:"), end="\r", highlight=kwargs["highlight"])
+            print(
+                " " * (terminal_width - cls.true_len(args[2]))
+                + cls.apply_style(args[2])
+                + cls.apply_style(":end:"),
+                end="\r",
+            )
+            cls.console.print(
+                " " * ((len(_center) - cls.true_len(_center)) // 2)
+                + _center
+                + cls.apply_style(":end:"),
+                end="\r",
+                highlight=kwargs["highlight"],
+            )
             cls.console.print(args[0], end="\r", highlight=kwargs["highlight"])
         elif num_args == 2:
-            print(" " * (terminal_width - cls.true_len(args[1])) + cls.apply_style(args[1]) + cls.apply_style(":end:"), end="\r")
-            cls.console.print(args[0] + cls.apply_style(":end:"), end="\r", highlight=kwargs["highlight"])
+            print(
+                " " * (terminal_width - cls.true_len(args[1]))
+                + cls.apply_style(args[1])
+                + cls.apply_style(":end:"),
+                end="\r",
+            )
+            cls.console.print(
+                args[0] + cls.apply_style(":end:"),
+                end="\r",
+                highlight=kwargs["highlight"],
+            )
         else:
             if right:
-                print(" " * (terminal_width - cls.true_len(args[0])) + cls.apply_style(args[0]) + cls.apply_style(":end:"), end="\r")
+                print(
+                    " " * (terminal_width - cls.true_len(args[0]))
+                    + cls.apply_style(args[0])
+                    + cls.apply_style(":end:"),
+                    end="\r",
+                )
             else:
-                cls.console.print(args[0].ljust(terminal_width), end="\r", highlight=kwargs["highlight"])
+                cls.console.print(
+                    args[0].ljust(terminal_width),
+                    end="\r",
+                    highlight=kwargs["highlight"],
+                )
         cls.console.print(cls.apply_style(":end:"), **kwargs)
 
 
 lprint = Terminal.lprint
+translate = Translator().translate
+tl = translate
 
 
 class StatusParent:
@@ -318,12 +354,15 @@ class DefaultCallbacks:
             else -1
         )
         if percent_downloaded != -1:
-            bar_length = 20
+            bar_length = 24
             completed_length = int(round(bar_length * percent_downloaded / float(100)))
             bar_fill = "▇" * completed_length
             bar_empty = "-" * (bar_length - completed_length)
+            spinner = ["⢎⡰", "⢎⡡", "⢎⡑", "⢎⠱", "⠎⡱", "⢊⡱", "⢌⡱", "⢆⡱"]
+            current_spin = spinner[data.get("iteration") % len(spinner)]
             lprint(
-                f"⭳ :gray:{data.get('filename')} :white:[:green:{bar_fill}:gray:{bar_empty}:white:]:end: :accent:{percent_downloaded}:gray:/:white:100:end: eta: :magenta:{data.get('eta')}s:end:",
+                f"⭳ :gray:{data.get('filename')} ",
+                f":gray:[:green:{bar_fill}:gray:{bar_empty}]:end: :lime:{data.get('downloaded_size') / (1024 * 1024):.2f}MB :magenta:{data.get('download_speed') / (1024 * 1024):.2f}MB/s :cyan:{data.get('time_passed'):.2f}s :white::bold:{current_spin}",
                 end="\r",
                 highlight=False,
             )
@@ -339,4 +378,36 @@ class DefaultCallbacks:
     @classmethod
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
         file_size = path.getsize(data["file_path"]) / (1024 * 1024)
-        lprint(f":thumbs_up: Download finished {data['file_path']}, size: {file_size:.2f} MB")
+        lprint(
+            f":fire: :red:Download finished :white:{data['file_path']} :lime:{file_size:.2f}MB",
+            "",
+        )
+
+
+def check_updates() -> bool:
+    """
+    Checks for updates of pybalt by comparing the current version to the latest version from pypi.org
+
+    Returns:
+        bool: True if the check was successful, False otherwise
+    """
+    try:
+        from pkg_resources import version, PackageNotFoundError
+        from requests import get, exceptions
+
+        current_version = version("pybalt")
+        response = get("https://pypi.org/pypi/pybalt/json")
+        data = response.json()
+        last_version = data["info"]["version"]
+        if last_version != current_version:
+            lprint(
+                tl("UPDATE_AVALIABLE").format(
+                    last_version=last_version, current_version=current_version
+                )
+            )
+            return False
+    except PackageNotFoundError:
+        lprint(tl("PACKAGE_NOT_FOUND"))
+    except exceptions.RequestException as e:
+        lprint(tl("UPDATE_CHECK_FAIL").format(error=e))
+    return True

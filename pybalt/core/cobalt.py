@@ -14,7 +14,7 @@ from typing import (
     Coroutine,
     Callable,
 )
-from .misc import Translator, lprint
+from .misc import Translator, lprint, check_updates
 from .client import RequestClient, _DownloadOptions
 from .constants import (
     FALLBACK_INSTANCE,
@@ -26,6 +26,8 @@ from . import exceptions
 from time import time
 from pathlib import Path
 from .remux import remux
+from sys import platform
+from subprocess import run as srun
 import re
 
 
@@ -39,6 +41,7 @@ class _CobaltParameters(TypedDict, total=False):
     session: ClientSession
     headers: Dict[str, str]
     debug: bool
+    updates: bool
 
 
 class _CobaltBodyOptions(TypedDict, total=False):
@@ -85,6 +88,8 @@ class _CobaltDownloadOptions(TypedDict, total=False):
     headers: Dict[str, str]
     timeout: int
     remux: bool
+    show: bool
+    open: bool
 
 
 class Tunnel:
@@ -133,6 +138,33 @@ class Tunnel:
         file_path = await self.instance.parent.request_client.download_from_url(**body)
         if _remux:
             file_path = remux(file_path)
+        if body.get("open", False):
+            if platform == "win32":
+                from os import startfile
+
+                startfile(file_path)
+            elif platform == "darwin":
+                srun(["open", file_path])
+            else:
+                srun(["xdg-open", file_path])
+        if body.get("show", False):
+            if platform == "win32":
+                srun(
+                    [
+                        "explorer",
+                        "/select,",
+                        file_path,
+                    ]
+                )
+            elif platform == "darwin":
+                srun(["open", "-R", file_path])
+            else:
+                srun(
+                    [
+                        "xdg-open",
+                        file_path,
+                    ]
+                )
         return file_path
 
     def __repr__(self):
@@ -279,7 +311,9 @@ class Cobalt:
             (
                 lambda *args, **kwargs: lprint(
                     *[
-                        ":gray:ⓓ " + str(arg) if not isinstance(arg, Exception) else ":red:ⓔ " + str(arg)
+                        ":gray:？ " + str(arg)
+                        if not isinstance(arg, Exception)
+                        else ":red::warning:  " + str(arg)
                         for arg in args
                     ],
                     **kwargs,
@@ -293,6 +327,9 @@ class Cobalt:
             api_key=getenv("COBALT_LOCAL_INSTANCE_API_KEY", None),
             parent=self,
         )
+        self.remux = remux
+        if "update" in params:
+            check_updates()
 
     async def fetch_instances(self) -> List[Instance]:
         try:
