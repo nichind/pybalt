@@ -1,7 +1,7 @@
 from aiohttp import ClientSession
 from .misc import Translator, DefaultCallbacks, StatusParent, lprint
 from typing import Literal, Union, Dict, Callable, Coroutine, Unpack, TypedDict
-from asyncio import sleep, iscoroutinefunction
+from asyncio import sleep, iscoroutinefunction, wait_for, TimeoutError
 from .constants import DEFAULT_TIMEOUT
 from time import time
 from os import path, getenv, makedirs
@@ -34,7 +34,7 @@ class _DownloadOptions(TypedDict, total=False):
     status_parent: str
     headers: Dict[str, str]
     timeout: int
-    callback_rate: int
+    callback_rate: float
     proxy: str
     max_speed: int
 
@@ -185,7 +185,6 @@ class RequestClient:
         session = (
             ClientSession(
                 headers=options.get("headers", self.headers),
-                proxy=options.get("proxy"),
             )
             if not self.session or self.session.closed
             else self.session
@@ -193,6 +192,7 @@ class RequestClient:
         try:
             async with session.get(
                 options.get("url"),
+                proxy=options.get("proxy", None),
             ) as resp:
                 if resp.status.__str__()[0] in ["4", "5"]:
                     raise exceptions.DownloadError(
@@ -223,9 +223,15 @@ class RequestClient:
                     max_speed = options.get("max_speed")
                     while True:
                         if total_size == -1:
-                            chunk = await resp.content.read(max_speed or 1024 * 4)
-                            if not chunk:
-                                break
+                            try:
+                                chunk = await wait_for(
+                                    resp.content.read(max_speed or 1024 * 4),
+                                    options.get("callback_rate", 0.256),
+                                )
+                                if not chunk:
+                                    break
+                            except TimeoutError:
+                                pass
                         else:
                             chunk = resp.content.read_nowait()
                         await f.write(chunk)
@@ -233,7 +239,7 @@ class RequestClient:
                         if downloaded_size >= total_size and total_size != -1:
                             break
                         if time() - last_callback >= options.get(
-                            "callback_rate", 0.369
+                            "callback_rate", 0.256
                         ):
                             download_speed = (downloaded_size - last_size) / (
                                 time() - last_callback

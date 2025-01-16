@@ -180,79 +180,92 @@ def install_cobalt_container() -> None:
 class Terminal:
     console = Console()
 
+    replaces = {
+        ":accent:": "\033[96m",
+        ":reset:": "\033[0m",
+        ":end:": "\033[0m",
+        ":bold:": "\033[1m",
+        ":underline:": "\033[4m",
+        ":italic:": "\033[3m",
+        ":strikethrough:": "\033[9m",
+        ":red:": "\033[31m",
+        ":green:": "\033[32m",
+        ":yellow:": "\033[33m",
+        ":blue:": "\033[34m",
+        ":magenta:": "\033[35m",
+        ":cyan:": "\033[36m",
+        ":white:": "\033[37m",
+        ":gray:": "\033[90m",
+        ":bg_red:": "\033[41m",
+        ":bg_green:": "\033[42m",
+        ":bg_yellow:": "\033[43m",
+        ":bg_blue:": "\033[44m",
+        ":bg_magenta:": "\033[45m",
+        ":bg_cyan:": "\033[46m",
+        ":bg_white:": "\033[47m",
+    }
+
+    pattern = re.compile(
+        r"[\x1b\x9b\x9f][\[\]()\\]*[0-?]*[ -/]*[@-~]"
+        r"|[\U00010000-\U0010ffff]"
+        r"|[\u200d]"
+        r"|[\u2640-\u2642]"
+        r"|[\u2600-\u2b55]"
+        r"|[\u23cf]"
+        r"|[\u23e9]"
+        r"|[\u231a]"
+        r"|[\ufe0f]"  # dingbats
+        r"|[\u3030]"
+        "+",
+        flags=re.UNICODE,
+    )
+
     @classmethod
     def get_size(cls) -> tuple[int, int]:
         return get_terminal_size()
 
     @classmethod
     def apply_style(cls, text: str) -> str:
-        return (
-            text.replace(":accent:", "\033[96m")
-            .replace(":reset:", "\033[0m")
-            .replace(":end:", "\033[0m")
-            .replace(":bold:", "\033[1m")
-            .replace(":underline:", "\033[4m")
-            .replace(":italic:", "\033[3m")
-            .replace(":strikethrough:", "\033[9m")
-            .replace(":red:", "\033[31m")
-            .replace(":green:", "\033[32m")
-            .replace(":yellow:", "\033[33m")
-            .replace(":blue:", "\033[34m")
-            .replace(":magenta:", "\033[35m")
-            .replace(":cyan:", "\033[36m")
-            .replace(":white:", "\033[37m")
-            .replace(":gray:", "\033[90m")
-            .replace(":bg_red:", "\033[41m")
-            .replace(":bg_green:", "\033[42m")
-            .replace(":bg_yellow:", "\033[43m")
-            .replace(":bg_blue:", "\033[44m")
-            .replace(":bg_magenta:", "\033[45m")
-            .replace(":bg_cyan:", "\033[46m")
-            .replace(":bg_white:", "\033[47m")
+        for key, value in cls.replaces.items():
+            text = text.replace(key, value)
+        return text
+
+    @classmethod
+    def true_len(cls, text: str) -> int:
+        return len(
+            re.sub(
+                r"[\u001B\u009B][\[\]()#;?]*((([a-zA-Z\d]*(;[-a-zA-Z\d\/#&.:=?%@~_]*)*)?\u0007)|((\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-ntqry=><~]))",
+                "",
+                text,
+            )
         )
 
     @classmethod
-    def lprint(cls, text: str, lend: str = "", **kwargs) -> None:
-        text = str(text)
-        lend = str(lend)
-        start_lenght = len(text)
-        end_lenght = len(lend)
-        pattern = re.compile(
-            r"[\x1b\x9b\x9f][\[\]()\\]*[0-?]*[ -/]*[@-~]"
-            r"|["
-            "\U00010000-\U0010ffff"
-            "\u200d"
-            "\u2640-\u2642"
-            "\u2600-\u2b55"
-            "\u23cf"
-            "\u23e9"
-            "\u231a"
-            "\ufe0f"  # dingbats
-            "\u3030"
-            "]+",
-            flags=re.UNICODE,
-        )
-        text = cls.apply_style(text)
-        lend = cls.apply_style(lend)
-        start_lenght -= len(pattern.findall(text))
-        end_lenght -= len(pattern.findall(lend))
-
-        if start_lenght >= cls.get_size()[0]:
-            text = (
-                text[: cls.get_size()[0] - (3 + (end_lenght + 1 if lend else 0))]
-                + "..."
-                + (" " + lend if lend else "")
-            )
-        else:
-            text = (
-                text
-                + " "
-                * (cls.get_size()[0] - start_lenght - (end_lenght + 1 if lend else 0))
-                + (lend if lend else "")
-            )
+    def lprint(cls, *args: str, right: bool = False, **kwargs) -> None:
+        args = [cls.apply_style(str(arg)) for arg in args]
+        terminal_width = cls.get_size()[0]
+        num_args = len(args)
+        
         if "highlight" not in kwargs:
             kwargs["highlight"] = False
-        cls.console.print(text, **kwargs)
+
+        if num_args == 0:
+            return
+
+        if num_args == 3:
+            _center = args[1].center(terminal_width).rstrip()
+            print(" " * (terminal_width - cls.true_len(args[2])) + cls.apply_style(args[2]) + cls.apply_style(":end:"), end="\r")
+            cls.console.print(" " * ((len(_center) - cls.true_len(_center)) // 2) + _center + cls.apply_style(":end:"), end="\r", highlight=kwargs["highlight"])
+            cls.console.print(args[0], end="\r", highlight=kwargs["highlight"])
+        elif num_args == 2:
+            cls.console.print(args[1].rjust(terminal_width) + cls.apply_style(":end:"), end="\r", highlight=kwargs["highlight"])
+            cls.console.print(args[0] + cls.apply_style(":end:"), end="\r", highlight=kwargs["highlight"])
+        else:
+            if right:
+                cls.console.print(args[0].rjust(terminal_width), end="\r", highlight=kwargs["highlight"])
+            else:
+                cls.console.print(args[0].ljust(terminal_width), end="\r", highlight=kwargs["highlight"])
+        cls.console.print(cls.apply_style(":end:"), **kwargs)
 
 
 lprint = Terminal.lprint
@@ -294,17 +307,20 @@ class DefaultCallbacks:
             bar_fill = "▇" * completed_length
             bar_empty = "-" * (bar_length - completed_length)
             lprint(
-                f"⭳ {data.get('filename')} :white:[:accent:{bar_fill}:gray:{bar_empty}:white:]:end: :accent:{percent_downloaded}:gray:/:white:100:end: eta: :accent:{data.get('eta')}s:end:",
+                f"⭳ :gray:{data.get('filename')} :white:[:accent:{bar_fill}:gray:{bar_empty}:white:]:end: :accent:{percent_downloaded}:gray:/:white:100:end: eta: :accent:{data.get('eta')}s:end:",
                 end="\r",
                 highlight=False,
             )
         else:
+            spinner = ["⢎⡰", "⢎⡡", "⢎⡑", "⢎⠱", "⠎⡱", "⢊⡱", "⢌⡱", "⢆⡱"]
+            current_spin = spinner[data.get("iteration") % len(spinner)]
             lprint(
-                f"⭳ Downloading {data.get('filename')} | time passed: {int(time() - data.get('start_at'))}s",
+                f"⭳ :gray:{data.get('filename')} ",
+                f":accent:{data.get('downloaded_size') / (1024 * 1024):.2f}:gray:MB :accent:{data.get('download_speed') / (1024 * 1024):.2f}:gray:MB/s :accent:{data.get('time_passed'):.2f}:gray:s :accent:{current_spin}:end:",
                 end="\r",
             )
 
     @classmethod
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
         file_size = path.getsize(data["file_path"]) / (1024 * 1024)
-        lprint(f":rocket: Downloaded {data['file_path']}, size: {file_size:.2f} MB")
+        lprint(f":tick: Downloaded {data['file_path']}, size: {file_size:.2f} MB")
