@@ -222,20 +222,26 @@ class RequestClient:
                     last_callback = time()
                     max_speed = options.get("max_speed")
                     while True:
+                        chunk = None
                         if total_size == -1:
-                            try:
-                                chunk = await wait_for(
-                                    resp.content.read(max_speed or 1024 * 4),
-                                    options.get("callback_rate", 0.164),
-                                )
-                                if not chunk:
-                                    break
-                            except TimeoutError:
-                                pass
+                            chunk = await resp.content.read(1024*1024)
+                            if not chunk:
+                                break
+                            # TODO: Implement non-blocking when connection dropper and total file size is unknown
+                            # try:
+                            #     chunk = await wait_for(
+                            #         resp.content.read(1024 * 1024),
+                            #         0.512
+                            #     )
+                            #     if not chunk:
+                            #         break
+                            # except TimeoutError:
+                            #     pass
                         else:
                             chunk = resp.content.read_nowait()
-                        await f.write(chunk)
-                        downloaded_size += len(chunk)
+                        if chunk:
+                            await f.write(chunk)
+                            downloaded_size += len(chunk)
                         if downloaded_size >= total_size and total_size != -1:
                             break
                         if time() - last_callback >= options.get(
