@@ -3,3 +3,4 @@ aiofiles
 requests
 python-dotenv
 pytube
+rich
