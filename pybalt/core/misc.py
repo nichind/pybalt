@@ -26,9 +26,7 @@ class Translator:
     def translate(self, key: str, language: str = None) -> str:
         """Translate a key from the translation file."""
         language = language or self.language
-        file = path.join(
-            path.dirname(path.dirname(__file__)), "locales", f"{language}.txt"
-        )
+        file = path.join(path.dirname(path.dirname(__file__)), "locales", f"{language}.txt")
         if not path.exists(file):
             if language.upper() != "EN":
                 return self.translate(key, "EN")
@@ -334,7 +332,7 @@ class StatusParent:
     filename: str
     download_speed: int
     completed: bool
-
+    
     def __init__(self) -> None:
         self.total_size = 0
         self.downloaded_size = 0
@@ -396,8 +394,7 @@ class DefaultCallbacks:
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
         file_size = path.getsize(data["file_path"]) / (1024 * 1024)
         lprint(
-            f":green:✔  :white:{data['file_path']}",
-            f":green:{file_size:.2f}MB :cyan:{data.get('time_passed'):.2f}s",
+            f":green:✔  :white:{data['file_path']}", f":green:{file_size:.2f}MB :cyan:{data.get('time_passed'):.2f}s",
         )
 
 
@@ -412,8 +409,7 @@ def check_updates() -> bool:
     from requests import get, exceptions
 
     try:
-        # current_version = get_distribution("pybalt").version
-        current_version = "1"
+        current_version = get_distribution("pybalt").version
         response = get("https://pypi.org/pypi/pybalt/json", timeout=10)
         response.raise_for_status()
         data = response.json()
