@@ -1,137 +1,103 @@
-import argparse
 from asyncio import run
-from .cobalt import Cobalt, check_updates, tl
-from os import path
+from .core.cobalt import _CobaltDownloadOptions, _CobaltParameters, Cobalt, lprint, cfg_value
+from typing import _LiteralGenericAlias
+from os.path import exists
 from time import time
-from importlib.metadata import version
+import argparse
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("positional", nargs="?", type=str)
+for key, value in {
+    **_CobaltDownloadOptions.__annotations__,
+    **_CobaltParameters.__annotations__,
+}.items():
+    try:
+        if value is bool:
+            if not any(
+                arg.startswith(f"-{key[0]}") for arg in parser._option_string_actions
+            ):
+                parser.add_argument(
+                    f"-{key[0]}{''.join([x for i, x in enumerate(key) if i > 0 and x.isupper()])}",
+                    f"--{key}",
+                    action="store_true",
+                )
+            else:
+                parser.add_argument(
+                    f"-{key[:2].lower()}",
+                    f"--{key}",
+                    action="store_true",
+                )
+        else:
+            if not any(
+                arg.startswith(f"-{key[0]}") for arg in parser._option_string_actions
+            ):
+                parser.add_argument(
+                    f"-{key[0]}{''.join([x for i, x in enumerate(key) if i > 0 and x.isupper()])}",
+                    f"--{key}",
+                    type=value if not isinstance(value, _LiteralGenericAlias) else str,
+                    choices=None
+                    if not isinstance(value, _LiteralGenericAlias)
+                    else value.__args__,
+                )
+            else:
+                parser.add_argument(
+                    f"-{key[:2].lower()}",
+                    f"--{key}",
+                    type=value if not isinstance(value, _LiteralGenericAlias) else str,
+                    choices=None
+                    if not isinstance(value, _LiteralGenericAlias)
+                    else value.__args__,
+                )
+    except argparse.ArgumentError:
+        parser.add_argument(f"--{key}", type=value)
 
 
 async def _():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("url_arg", nargs="?", type=str, help=tl("URL_ARGUMENT"))
-    parser.add_argument(
-        "-u", "--url", type=str, help=tl("URL_ARGUMENT"), required=False
-    )
-    parser.add_argument(
-        "-l", "--list", type=str, help=tl("FILE_ARGUMENT"), required=False
-    )
-    parser.add_argument(
-        "-q",
-        "-r",
-        "--quality",
-        "--resolution",
-        type=str,
-        help=tl("QUALITY_ARGUMENT"),
-        required=False,
-    )
-    parser.add_argument(
-        "-f", "--folder", type=str, help=tl("FOLDER_ARGUMENT"), required=False
-    )
-    parser.add_argument(
-        "-i", "--instance", type=str, help=tl("INSTANCE_ARGUMENT"), required=False
-    )
-    parser.add_argument(
-        "-k", "--key", type=str, help=tl("APIKEY_ARGUMENT"), required=False
-    )
-    parser.add_argument(
-        "-pl",
-        "--playlist",
-        type=str,
-        help=tl("PLAYLIST_ARGUMENT"),
-        required=False,
-    )
-    parser.add_argument(
-        "-fs",
-        "--filenameStyle",
-        type=str,
-        help=tl("FILENAME_ARGUMENT"),
-        required=False,
-        choices=["classic", "pretty", "basic", "nerdy"],
-    )
-    parser.add_argument(
-        "-af",
-        "--audioFormat",
-        type=str,
-        help=tl("AUDIO_ARGUMENT"),
-        required=False,
-        choices=["mp3", "ogg", "wav", "opus"],
-    )
-    parser.add_argument(
-        "-yvc",
-        "--youtubeVideoCodec",
-        help=tl("YOUTUBE_VIDEO_CODEC_ARGUMENT"),
-        required=False,
-        choices=["vp9", "h264"],
-    )
-    parser.add_argument(
-        "-s",
-        "--show",
-        help=tl("SHOW_ARGUMENT"),
-        action="store_true",
-    )
-    parser.add_argument("-play", "-p", help=tl("PLAY_ARGUMENT"), action="store_true")
-    parser.add_argument(
-        "-v", "--version", help=tl("VERSION_ARGUMENT"), action="store_true"
-    )
-    parser.add_argument(
-        "-up", "--update", help=tl("UPDATE_ARGUMENT"), action="store_true"
-    )
     args = parser.parse_args()
-    if args.version:
-        try:
-            print(tl("VERSION").format(version("pybalt")))
-        except Exception:
-            print(tl("PACKAGE_NOT_FOUND"))
-        return
-    if args.update:
-        await check_updates()
-        return
-    if args.url_arg:
-        args.url = args.url_arg
-    urls = ([args.url] if args.url else []) + (
-        [line.strip() for line in open(args.list)] if args.list else []
+    if args.positional and not args.url:
+        args.url = args.positional
+    cobalt = Cobalt(
+        **{
+            key: value
+            for key, value in args.__dict__.items()
+            if key in _CobaltParameters.__annotations__.keys() and value is not None
+        }
     )
-    if args.url and not path.isdir(args.url) and path.isfile(args.url):
-        urls = [
-            line.strip() for line in open(args.url_arg if args.url_arg else args.url)
-        ]
-    if not urls and not args.playlist:
-        print(
-            tl("NO_URL_PROVIDED"),
-            sep="\n",
-        )
-        return
-    api = Cobalt(api_instance=args.instance, api_key=args.key)
-    if args.playlist:
-        urls += [args.playlist]
-    for url in urls:
-        await api.download(
-            url=url,
-            path_folder=args.folder if args.folder else None,
-            quality=args.quality if args.quality else "1080",
-            filename_style=args.filenameStyle if args.filenameStyle else "pretty",
-            audio_format=args.audioFormat if args.audioFormat else "mp3",
-            youtube_video_codec=args.youtubeVideoCodec
-            if args.youtubeVideoCodec
-            else None,
-            show=args.show,
-            play=args.play,
-        )
-    print(tl("SUCCESS"))
+    if args.positional and args.remux and exists(args.positional) and not args.positional.endswith(".txt"):
+        cobalt.remux(args.positional, keep_original=True)
+    elif args.remux and not args.url:
+        lprint(":red::warning: No URL or FILE PATH provided for remuxing")
+    elif args.url:
+        if exists(args.url):
+            _urls = open(args.url).readlines()
+        else:
+            _urls = [args.url]
+        for url in _urls:
+            try:
+                args.url = url
+                await cobalt.download(
+                    **{
+                        key: value
+                        for key, value in args.__dict__.items()
+                        if key in _CobaltDownloadOptions.__annotations__.keys()
+                        and value is not None
+                    }
+                )
+            except Exception as exc:
+                lprint(":red::warning: " + str(exc))
+        if int(cfg_value().get("last_thank", 0)) < int(time()) - 60 * 60 * 2:
+            cfg_value("last_thank", int(time()))
+            lprint(
+                ":green:Thanks for using pybalt:end:, if you enjoyed it please leave a star on GitHub::star: :accent:https://github.com/nichind/pybalt"
+            )
+    elif args.updates:
+        lprint(":green:pybalt is up to date")
+    else:
+        lprint(":red::warning: No URL provided")
 
 
 def main():
-    update_check_file = path.expanduser("~/.pybalt")
-    if not path.exists(update_check_file):
-        with open(update_check_file, "w") as f:
-            f.write("0")
-    with open(update_check_file) as f:
-        if int(f.read()) < int(time()) - 60 * 60:
-            print(tl("CHECKING_FOR_UPDATES"), flush=True)
-            run(check_updates())
-            with open(update_check_file, "w") as f:
-                f.write(str(int(time())))
-            print("\r", end="")
     run(_())
 
 

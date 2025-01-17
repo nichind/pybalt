@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+from pybalt.core import constants
 
 
 def readme():
@@ -8,21 +9,16 @@ def readme():
 
 setup(
     name="pybalt",
-    version="2024.12.9",
+    version=constants.VERSION,
     author="nichind",
     author_email="nichinddev@gmail.com",
-    description="Download mediafiles from YouTube, Twitter (X), Instagram, Reddit & more. CLI & python module for @imputnet's cobalt processing instance api.",
+    description="Download video from YouTube, Twitter (X), Instagram, Reddit, Twitch, Bilibili & more. CLI & python module for @imputnet's cobalt processing instance api.",
     long_description=readme(),
     long_description_content_type="text/markdown",
     url="https://github.com/nichind/pybalt",
     packages=find_packages(),
     package_data={"pybalt": ["locales/*.txt"]},
-    install_requires=[
-        "aiohttp",
-        "aiofiles",
-        "pytube",
-        "python-dotenv",
-    ],
+    install_requires=["aiohttp", "aiofiles", "pytube", "python-dotenv", "requests"],
     keywords=[
         "downloader",
         "cobalt",
@@ -48,7 +44,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.11",
     entry_points={
         "console_scripts": [
             "pybalt=pybalt.__main__:main",
