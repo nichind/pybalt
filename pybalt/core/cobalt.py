@@ -13,9 +13,11 @@ from typing import (
     Any,
     Coroutine,
     Callable,
+    Generator,
+    AsyncGenerator
 )
-from .misc import Translator, lprint, check_updates
-from .client import RequestClient, _DownloadOptions
+from .misc import Translator, lprint, check_updates, cfg_value
+from .client import RequestClient, _DownloadOptions, StatusParent
 from .constants import (
     FALLBACK_INSTANCE,
     FALLBACK_INSTANCE_API_KEY,
@@ -213,14 +215,13 @@ class Instance:
 
     async def get_tunnel(
         self, **body: Unpack[_CobaltBodyOptions]
-    ) -> Tunnel | List[Tunnel]:
+    ) -> AsyncGenerator[Tunnel, None]:
         if not self.version == "unknown":
             try:
                 await self.get_instance_info()
             except Exception:
                 ...
         if len(re.findall("[&?]list=([^&]+)", body.get("url", ""))) > 0:
-            tunnels = []
             from pytube import Playlist
 
             playlist = Playlist(body.get("url"))
@@ -228,8 +229,8 @@ class Instance:
                 if "music." in item_url:
                     item_url = item_url.replace("www", "music")
                 body["url"] = item_url
-                tunnels += [await self.get_tunnel(**body)]
-            return tunnels
+                async for _tunnel in self.get_tunnel(**body):
+                    yield _tunnel
         response = await self.parent.post(self.url, data=body)  # Pray for success!
         if not isinstance(response, dict):  # If your prayers not fulfilled
             if "<title>Just a moment...</title>" in response:
@@ -255,12 +256,13 @@ class Instance:
             raise exceptions.NoUrlInTunnelResponse(
                 f"{self.url}: No url found in tunnel response: {response}"
             )
-        tunnel = Tunnel(response, instance=self)
-        return tunnel
+        yield Tunnel(response, instance=self)
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.url}, {self.version if self.version else 'unknown'}, {len(self.services) if self.services else 0} services)"
 
+    def __aiter__(self):
+        return self
 
 class Cobalt:
     instance: Union[Instance, str] = None
@@ -356,30 +358,35 @@ class Cobalt:
 
     async def download(
         self, url: Union[str, Tunnel], **body: Unpack[_CobaltDownloadOptions]
-    ) -> Path:
+    ) -> Path | List[Path]:
         if isinstance(url, Tunnel):
             return await self.request_client.download_from_url(url=url, **body)
         for instance in await self.fetch_instances():
             try:
-                tunnel = await instance.get_tunnel(
+                results = []
+                self.debug(
+                    f"Trying to download {url} using instance: {instance.url}", end="\r"
+                )
+                async for tunnel in instance.get_tunnel(
                     url=url,
                     **{
                         key: value
                         for key, value in body.items()
                         if key in _CobaltBodyOptions.__annotations__.keys()
                     },
-                )
-                self.debug(
-                    f"Tunnel created, instance: {instance.url}, tunnel url: {tunnel.url}"
-                )
-                return await tunnel.download(
-                    _remux=body.get("remux", False),
-                    **{
-                        key: value
-                        for key, value in body.items()
-                        if key in _CobaltDownloadOptions.__annotations__.keys()
-                    },
-                )
+                ):
+                    self.debug(
+                        f"Tunnel created, instance: {instance.url}, tunnel url: {tunnel.url}"
+                    )
+                    results.append(await tunnel.download(
+                        _remux=body.get("remux", False),
+                        **{
+                            key: value
+                            for key, value in body.items()
+                            if key in _CobaltDownloadOptions.__annotations__.keys()
+                        },
+                    ))
+                return results if len(results) > 1 else results[0]
             except Exception as exc:
                 self.debug(exc)
         raise exceptions.AllInstancesFailed(

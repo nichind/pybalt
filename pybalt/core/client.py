@@ -222,9 +222,8 @@ class RequestClient:
                     last_callback = time()
                     max_speed = options.get("max_speed")
                     while True:
-                        chunk = None
                         if total_size == -1:
-                            chunk = await resp.content.read(1024*1024)
+                            chunk = await resp.content.read(1024 * 1024)
                             if not chunk:
                                 break
                             # TODO: Implement non-blocking way to read buffer when connection is dropped and total file size is unknown
@@ -239,13 +238,10 @@ class RequestClient:
                             #     pass
                         else:
                             chunk = resp.content.read_nowait()
-                        if chunk:
-                            await f.write(chunk)
-                            downloaded_size += len(chunk)
-                        if downloaded_size >= total_size and total_size != -1:
-                            break
+                        await f.write(chunk)
+                        downloaded_size += len(chunk)
                         if time() - last_callback >= options.get(
-                            "callback_rate", 0.164
+                            "callback_rate", 0.128
                         ):
                             download_speed = (downloaded_size - last_size) / (
                                 time() - last_callback
@@ -316,12 +312,47 @@ class RequestClient:
                                     )
                             last_callback = time()
                             iteration += 1
+                        if downloaded_size >= total_size and total_size != -1:
+                            break
                         if max_speed and len(chunk) > max_speed:
                             await sleep(
                                 (len(chunk) - max_speed) / (max_speed / 1024 / 1024)
                             )
             if downloaded_size <= 1024:
                 raise exceptions.DownloadError("Download failed, no data received")
+            if options.get("status_parent", None):
+                if isinstance(
+                    options.get("status_parent"), StatusParent
+                ):
+                    options.get(
+                        "status_parent"
+                    ).downloaded_size = downloaded_size
+                    options.get("status_parent").start_at = start_at
+                    options.get("status_parent").time_passed = round(
+                        time() - start_at, 2
+                    )
+                    options.get("status_parent").file_path = file_path
+                    options.get("status_parent").filename = filename
+                    options.get(
+                        "status_parent"
+                    ).download_speed = download_speed
+                    options.get("status_parent").total_size = total_size
+                    options.get("status_parent").completed = True
+                elif isinstance(options.get("status_parent"), dict):
+                    options.get("status_parent").update(
+                        downloaded_size=downloaded_size,
+                        start_at=start_at,
+                        time_passed=round(time() - start_at, 2),
+                        file_path=file_path,
+                        filename=filename,
+                        download_speed=download_speed,
+                        total_size=total_size,
+                        completed=True
+                    )
+                else:
+                    raise TypeError(
+                        "status_parent must be dict or StatusParent"
+                    )
             if options.get("done_callback", None):
                 if iscoroutinefunction(options.get("done_callback")):
                     await (options.get("done_callback"))(

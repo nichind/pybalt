@@ -76,7 +76,7 @@ class Remuxer:
             path.unlink()
             output = output.rename(path)
         lprint(
-            f":red:Remux result: :white:{output} :green:{output.stat().st_size / 1024 / 1024:.2f}MB"
+            f":green:✔:end:  Remux result: :white:{output} :green:{output.stat().st_size / 1024 / 1024:.2f}MB"
         )
         return output
 

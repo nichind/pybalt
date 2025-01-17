@@ -331,6 +331,11 @@ class StatusParent:
     file_path: str
     filename: str
     download_speed: int
+    completed: bool
+
+    def __repr__(self) -> str:
+        values = ", ".join(f"{key}={value!r}" for key, value in self.__dict__.items())
+        return f"{self.__class__.__name__}({values})"
 
 
 class _DownloadCallbackData(TypedDict):
@@ -361,8 +366,8 @@ class DefaultCallbacks:
             spinner = ["⢎⡰", "⢎⡡", "⢎⡑", "⢎⠱", "⠎⡱", "⢊⡱", "⢌⡱", "⢆⡱"]
             current_spin = spinner[data.get("iteration") % len(spinner)]
             lprint(
-                f"⭳ :gray:{data.get('filename')} ",
-                f":gray:[:green:{bar_fill}:gray:{bar_empty}]:end: :lime:{data.get('downloaded_size') / (1024 * 1024):.2f}MB :magenta:{data.get('download_speed') / (1024 * 1024):.2f}MB/s :cyan:{data.get('time_passed'):.2f}s :white::bold:{current_spin}",
+                f"⭳  :gray:{data.get('filename')} ",
+                f":gray:[:green:{bar_fill}:gray:{bar_empty}]:end: :lime:{data.get('downloaded_size') / (1024 * 1024):.2f}:gray:/{data.get('total_size') / (1024 * 1024):.2f}MB :magenta:{data.get('download_speed') / (1024 * 1024):.2f}MB/s :cyan:{data.get('time_passed'):.2f}s :white::bold:{current_spin}",
                 end="\r",
                 highlight=False,
             )
@@ -370,7 +375,7 @@ class DefaultCallbacks:
             spinner = ["⢎⡰", "⢎⡡", "⢎⡑", "⢎⠱", "⠎⡱", "⢊⡱", "⢌⡱", "⢆⡱"]
             current_spin = spinner[data.get("iteration") % len(spinner)]
             lprint(
-                f"⭳ :gray:{data.get('filename')} ",
+                f"⭳  :gray:{data.get('filename')} ",
                 f":lime:{data.get('downloaded_size') / (1024 * 1024):.2f}MB :magenta:{data.get('download_speed') / (1024 * 1024):.2f}MB/s :cyan:{data.get('time_passed'):.2f}s :white::bold:{current_spin}",
                 end="\r",
             )
@@ -379,7 +384,7 @@ class DefaultCallbacks:
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
         file_size = path.getsize(data["file_path"]) / (1024 * 1024)
         lprint(
-            f":fire: :red:Download finished :white:{data['file_path']} :lime:{file_size:.2f}MB",
+            f":green:✔  :white:{data['file_path']} :lime:{file_size:.2f}MB",
             "",
         )
 
@@ -411,3 +416,35 @@ def check_updates() -> bool:
     except exceptions.RequestException as e:
         lprint(tl("UPDATE_CHECK_FAIL").format(error=e))
     return True
+
+
+def cfg_value(key: str = None, value: str = None) -> dict | str | None:
+    cfg_path = path.join(cobalt_config_dir, "config.cfg")
+    if not path.exists(cfg_path):
+        with open(cfg_path, "w") as f:
+            f.write("")
+    if key is None:
+        cfg_items = {}
+        with open(cfg_path, "r") as f:
+            for line in f:
+                if "=" in line:
+                    cfg_items[line.split("=")[0].strip()] = line.split("=")[1].strip()
+        return cfg_items
+    elif value is None:
+        with open(cfg_path, "r") as f:
+            for line in f:
+                if line.startswith(key):
+                    return line.split("=")[1].strip()
+    else:
+        cfg_content = []
+        found = False
+        with open(cfg_path, "r") as f:
+            for line in f:
+                if line.startswith(key):
+                    line = f"{key}={value}\n"
+                    found = True
+                cfg_content.append(line)
+        if not found:
+            cfg_content.append(f"{key}={value}\n")
+        with open(cfg_path, "w") as f:
+            f.writelines(cfg_content)
