@@ -1,5 +1,11 @@
 from asyncio import run
-from .core.cobalt import _CobaltDownloadOptions, _CobaltParameters, Cobalt, lprint, cfg_value
+from .core.cobalt import (
+    _CobaltDownloadOptions,
+    _CobaltParameters,
+    Cobalt,
+    lprint,
+    cfg_value,
+)
 from typing import _LiteralGenericAlias
 from os.path import exists
 from time import time
@@ -64,7 +70,12 @@ async def _():
             if key in _CobaltParameters.__annotations__.keys() and value is not None
         }
     )
-    if args.positional and args.remux and exists(args.positional) and not args.positional.endswith(".txt"):
+    if (
+        args.positional
+        and args.remux
+        and exists(args.positional)
+        and not args.positional.endswith(".txt")
+    ):
         cobalt.remux(args.positional, keep_original=True)
     elif args.remux and not args.url:
         lprint(":red::warning: No URL or FILE PATH provided for remuxing")

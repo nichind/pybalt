@@ -14,10 +14,10 @@ from typing import (
     Coroutine,
     Callable,
     Generator,
-    AsyncGenerator
+    AsyncGenerator,
 )
-from .misc import Translator, lprint, check_updates, cfg_value
-from .client import RequestClient, _DownloadOptions, StatusParent
+from .misc import Translator, lprint, check_updates, cfg_value, StatusParent
+from .client import RequestClient, _DownloadOptions
 from .constants import (
     FALLBACK_INSTANCE,
     FALLBACK_INSTANCE_API_KEY,
@@ -264,6 +264,7 @@ class Instance:
     def __aiter__(self):
         return self
 
+
 class Cobalt:
     instance: Union[Instance, str] = None
     fallback_instance: Union[Instance, str]
@@ -330,8 +331,13 @@ class Cobalt:
             parent=self,
         )
         self.remux = remux
-        if "update" in params:
+        if (
+            "update" in params
+            or int(cfg_value().get("update_check", 0)) + 60 * 60 * 3 < time()
+        ):
+            self.debug("Checking for updates...", end="\r")
             check_updates()
+            cfg_value("update_check", str(int(time())))
 
     async def fetch_instances(self) -> List[Instance]:
         try:
@@ -378,14 +384,16 @@ class Cobalt:
                     self.debug(
                         f"Tunnel created, instance: {instance.url}, tunnel url: {tunnel.url}"
                     )
-                    results.append(await tunnel.download(
-                        _remux=body.get("remux", False),
-                        **{
-                            key: value
-                            for key, value in body.items()
-                            if key in _CobaltDownloadOptions.__annotations__.keys()
-                        },
-                    ))
+                    results.append(
+                        await tunnel.download(
+                            _remux=body.get("remux", False),
+                            **{
+                                key: value
+                                for key, value in body.items()
+                                if key in _CobaltDownloadOptions.__annotations__.keys()
+                            },
+                        )
+                    )
                 return results if len(results) > 1 else results[0]
             except Exception as exc:
                 self.debug(exc)

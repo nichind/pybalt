@@ -17,7 +17,9 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/nichind/pybalt",
     packages=find_packages(),
-    package_data={"pybalt": ["locales/*.txt"]},
+    package_data={
+        "pybalt": ["locales/*.txt"],
+    },
     install_requires=["aiohttp", "aiofiles", "pytube", "python-dotenv", "requests"],
     keywords=[
         "downloader",

@@ -26,7 +26,9 @@ class Translator:
     def translate(self, key: str, language: str = None) -> str:
         """Translate a key from the translation file."""
         language = language or self.language
-        file = path.join(path.dirname(__file__), "locales", f"{language}.txt")
+        file = path.join(
+            path.dirname(path.dirname(__file__)), "locales", f"{language}.txt"
+        )
         if not path.exists(file):
             if language.upper() != "EN":
                 return self.translate(key, "EN")
@@ -333,6 +335,16 @@ class StatusParent:
     download_speed: int
     completed: bool
 
+    def __init__(self) -> None:
+        self.total_size = 0
+        self.downloaded_size = 0
+        self.start_at = 0
+        self.time_passed = 0
+        self.file_path = None
+        self.filename = None
+        self.download_speed = 0
+        self.completed = False
+
     def __repr__(self) -> str:
         values = ", ".join(f"{key}={value!r}" for key, value in self.__dict__.items())
         return f"{self.__class__.__name__}({values})"
@@ -384,23 +396,26 @@ class DefaultCallbacks:
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
         file_size = path.getsize(data["file_path"]) / (1024 * 1024)
         lprint(
-            f":green:✔  :white:{data['file_path']}", f":green:{file_size:.2f}MB :cyan:{data.get('time_passed'):.2f}s",
+            f":green:✔  :white:{data['file_path']}",
+            f":green:{file_size:.2f}MB :cyan:{data.get('time_passed'):.2f}s",
         )
 
 
 def check_updates() -> bool:
     """
-    Checks for updates of pybalt by comparing the current version to the latest version from pypi.org
+    Checks for updates of pybalt by comparing the current version to the latest version from pypi.org.
 
     Returns:
-        bool: True if the check was successful, False otherwise
+        bool: True if the check was successful, False otherwise.
     """
-    try:
-        from pkg_resources import version, PackageNotFoundError
-        from requests import get, exceptions
+    from pkg_resources import get_distribution, DistributionNotFound
+    from requests import get, exceptions
 
-        current_version = version("pybalt")
-        response = get("https://pypi.org/pypi/pybalt/json")
+    try:
+        # current_version = get_distribution("pybalt").version
+        current_version = "1"
+        response = get("https://pypi.org/pypi/pybalt/json", timeout=10)
+        response.raise_for_status()
         data = response.json()
         last_version = data["info"]["version"]
         if last_version != current_version:
@@ -410,7 +425,7 @@ def check_updates() -> bool:
                 )
             )
             return False
-    except PackageNotFoundError:
+    except DistributionNotFound:
         lprint(tl("PACKAGE_NOT_FOUND"))
     except exceptions.RequestException as e:
         lprint(tl("UPDATE_CHECK_FAIL").format(error=e))

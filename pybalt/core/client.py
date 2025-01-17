@@ -321,21 +321,15 @@ class RequestClient:
             if downloaded_size <= 1024:
                 raise exceptions.DownloadError("Download failed, no data received")
             if options.get("status_parent", None):
-                if isinstance(
-                    options.get("status_parent"), StatusParent
-                ):
-                    options.get(
-                        "status_parent"
-                    ).downloaded_size = downloaded_size
+                if isinstance(options.get("status_parent"), StatusParent):
+                    options.get("status_parent").downloaded_size = downloaded_size
                     options.get("status_parent").start_at = start_at
                     options.get("status_parent").time_passed = round(
                         time() - start_at, 2
                     )
                     options.get("status_parent").file_path = file_path
                     options.get("status_parent").filename = filename
-                    options.get(
-                        "status_parent"
-                    ).download_speed = download_speed
+                    options.get("status_parent").download_speed = download_speed
                     options.get("status_parent").total_size = total_size
                     options.get("status_parent").completed = True
                 elif isinstance(options.get("status_parent"), dict):
@@ -347,12 +341,10 @@ class RequestClient:
                         filename=filename,
                         download_speed=download_speed,
                         total_size=total_size,
-                        completed=True
+                        completed=True,
                     )
                 else:
-                    raise TypeError(
-                        "status_parent must be dict or StatusParent"
-                    )
+                    raise TypeError("status_parent must be dict or StatusParent")
             if options.get("done_callback", None):
                 if iscoroutinefunction(options.get("done_callback")):
                     await (options.get("done_callback"))(
