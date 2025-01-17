@@ -13,8 +13,6 @@ for key, value in {
     **_CobaltParameters.__annotations__,
 }.items():
     try:
-        if value not in [bool, str, int, float, _LiteralGenericAlias]:
-            continue
         if value is bool:
             if not any(
                 arg.startswith(f"-{key[0]}") for arg in parser._option_string_actions
@@ -37,7 +35,7 @@ for key, value in {
                 parser.add_argument(
                     f"-{key[0]}{''.join([x for i, x in enumerate(key) if i > 0 and x.isupper()])}",
                     f"--{key}",
-                    type=value,
+                    type=value if not isinstance(value, _LiteralGenericAlias) else str,
                     choices=None
                     if not isinstance(value, _LiteralGenericAlias)
                     else value.__args__,
@@ -46,7 +44,7 @@ for key, value in {
                 parser.add_argument(
                     f"-{key[:2].lower()}",
                     f"--{key}",
-                    type=value,
+                    type=value if not isinstance(value, _LiteralGenericAlias) else str,
                     choices=None
                     if not isinstance(value, _LiteralGenericAlias)
                     else value.__args__,
