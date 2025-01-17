@@ -10,6 +10,7 @@ class Remuxer:
     def remux(cls, path: Path | str, keep_original: bool = False) -> Path:
         if isinstance(path, str):
             path = Path(path)
+        start_time = time()
         output = path.with_name(f"rmx_{path.name}")
         progress_file = Path(
             os.path.join(
@@ -76,7 +77,7 @@ class Remuxer:
             path.unlink()
             output = output.rename(path)
         lprint(
-            f":green:✔:end:  Remux result: :white:{output} :green:{output.stat().st_size / 1024 / 1024:.2f}MB"
+            f":green:✔:end:  Remux result: :white:{output}", f":green:{output.stat().st_size / 1024 / 1024:.2f}MB :cyan:{time() - start_time:.2f}s",
         )
         return output
 

@@ -384,8 +384,7 @@ class DefaultCallbacks:
     async def done_callback(cls, **data: Unpack[_DownloadCallbackData]) -> None:
         file_size = path.getsize(data["file_path"]) / (1024 * 1024)
         lprint(
-            f":green:✔  :white:{data['file_path']} :lime:{file_size:.2f}MB",
-            "",
+            f":green:✔  :white:{data['file_path']}", f":green:{file_size:.2f}MB :cyan:{data.get('time_passed'):.2f}s",
         )
 
 
