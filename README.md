@@ -97,6 +97,18 @@ disable print info
 await download(url, status_callback=None, done_callback=None)  # You can replace callbacks with your custom sync/async funcion!
 ```
 
-# ...
+# 👥 Used by
 
-I spent too much time on this project... please consider leaving a :star:
+pybalt is used by the following projects:
+
+- [download.nichind.dev](https://download.nichind.dev) - Website for downloading media files from various platforms
+
+# 👥 Contributors
+
+[![Contributors](https://contrib.rocks/image?repo=nichind/pybalt)](https://github.com/nichind/pybalt/graphs/contributors)
+
+# 🌟 That's it!
+
+I spent too much time on this project... please consider leaving a :star: if you like it!
+
+[![Star History Chart](https://api.star-history.com/svg?repos=nichind/pybalt&type=Date)](https://github.com/nichind/pybalt)
