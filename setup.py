@@ -20,7 +20,7 @@ setup(
     package_data={
         "pybalt": ["locales/*.txt"],
     },
-    install_requires = [x.strip() for x in open("requirements.txt").readlines()],
+    install_requires=[x.strip() for x in open("requirements.txt").readlines()],
     keywords=[
         "downloader",
         "cobalt",

@@ -100,7 +100,7 @@ async def _():
         if int(cfg_value().get("last_thank", 0)) < int(time()) - 60 * 60 * 2:
             cfg_value("last_thank", int(time()))
             lprint(
-                ":green:Thanks for using pybalt:end:, if you enjoyed it please leave a star on GitHub::star: :accent:https://github.com/nichind/pybalt"
+                ":green:Thanks for using pybalt:end:, if you enjoyed it please leave a star on GitHub :star: :accent:https://github.com/nichind/pybalt"
             )
     elif args.updates:
         lprint(":green:pybalt is up to date")
