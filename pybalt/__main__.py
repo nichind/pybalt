@@ -56,7 +56,10 @@ for key, value in {
                     else value.__args__,
                 )
     except argparse.ArgumentError:
-        parser.add_argument(f"--{key}", type=value)
+        if value is bool:
+            parser.add_argument(f"--{key}", action="store_true")
+        else:
+            parser.add_argument(f"--{key}", type=value)
 
 
 async def _():

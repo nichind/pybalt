@@ -1,4 +1,4 @@
-VERSION = "2025.1.1"
+VERSION = "2025.1.2"
 FALLBACK_INSTANCE = "https://dwnld.nichind.dev"
 FALLBACK_INSTANCE_API_KEY = "b05007aa-bb63-4267-a66e-78f8e10bf9bf"
 DEFAULT_UA = "pybalt/python"
