@@ -12,7 +12,7 @@ setup(
     version=constants.VERSION,
     author="nichind",
     author_email="nichinddev@gmail.com",
-    description="Download video from YouTube, Twitter (X), Instagram, Reddit, Twitch, Bilibili & more. CLI & python module for @imputnet's cobalt processing instance api.",
+    description="tool/python-module for downloading videos from YouTube, Twitter (X), Instagram, Reddit, Soundcloud and more! Powered by the @imputnet cobalt instances.",
     long_description=readme(),
     long_description_content_type="text/markdown",
     url="https://github.com/nichind/pybalt",
