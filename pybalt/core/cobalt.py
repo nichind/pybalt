@@ -14,7 +14,7 @@ from typing import (
     Callable,
     AsyncGenerator,
 )
-from .misc import Translator, lprint, check_updates, cfg_value
+from .misc import Translator, lprint, check_updates, cfg_value, StatusParent
 from .client import RequestClient, _DownloadOptions
 from .constants import (
     FALLBACK_INSTANCE,
