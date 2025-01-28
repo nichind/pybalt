@@ -9,14 +9,12 @@ from typing import (
     TypedDict,
     Literal,
     LiteralString,
-    Self,
     Any,
     Coroutine,
     Callable,
-    Generator,
     AsyncGenerator,
 )
-from .misc import Translator, lprint, check_updates, cfg_value, StatusParent
+from .misc import Translator, lprint, check_updates, cfg_value
 from .client import RequestClient, _DownloadOptions
 from .constants import (
     FALLBACK_INSTANCE,
@@ -352,7 +350,7 @@ class Cobalt:
             try:
                 self.debug("Fetching local instance info...", end="\r")
                 await self.local_instance.get_instance_info()
-                self.instances += [self.local_instance]
+                self.instances = [self.local_instance] + self.instances
             except Exception:
                 self.debug("Didn't find local instance, skipping")
             self.debug(f"Fetched {len(self.instances)} instances")
@@ -361,6 +359,26 @@ class Cobalt:
             self.debug(f"Failed to fetch instances: {exc}")
             self.instances = [self.fallback_instance]
             return self.instances
+
+    async def get_tunnel(self, url: str, **body: Unpack[_CobaltBodyOptions]) -> Tunnel:
+        tunnels = []
+        for instance in await self.fetch_instances():
+            try:
+                async for tunnel in instance.get_tunnel(
+                    url=url,
+                    **{
+                        key: value
+                        for key, value in body.items()
+                        if key in _CobaltBodyOptions.__annotations__.keys()
+                    },
+                ):
+                    tunnels += [tunnel]
+                return tunnels if len(tunnels) > 1 else tunnels[0]
+            except Exception as exc:
+                self.debug(exc)
+        raise exceptions.AllInstancesFailed(
+            f"Failed to get tunnel of {url} using any of {len(self.instances)} instances. If this issue persists, you can host your own local instance, more on it here: https://github.com/imputnet/cobalt/blob/main/docs/run-an-instance.md"
+        )
 
     async def download(
         self, url: Union[str, Tunnel], **body: Unpack[_CobaltDownloadOptions]

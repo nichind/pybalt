@@ -1,6 +1,6 @@
 from aiohttp import ClientSession
-from .misc import Translator, DefaultCallbacks, StatusParent, lprint
-from typing import Literal, Union, Dict, Callable, Coroutine, Unpack, TypedDict
+from .misc import Translator, DefaultCallbacks, StatusParent
+from typing import Literal, Dict, Callable, Coroutine, Unpack, TypedDict
 from asyncio import sleep, iscoroutinefunction, wait_for, TimeoutError
 from .constants import DEFAULT_TIMEOUT
 from time import time
@@ -319,7 +319,9 @@ class RequestClient:
                                 (len(chunk) - max_speed) / (max_speed / 1024 / 1024)
                             )
             if downloaded_size <= 1024:
-                raise exceptions.DownloadError("Download failed, no data received")
+                raise exceptions.DownloadError(
+                    "Download failed, no data received. That's a problem with cobalt instance, try enabling youtubeHLS, if this issue persist host your own local instance."
+                )
             if options.get("status_parent", None):
                 if isinstance(options.get("status_parent"), StatusParent):
                     options.get("status_parent").downloaded_size = downloaded_size

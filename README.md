@@ -97,6 +97,20 @@ disable print info
 await download(url, status_callback=None, done_callback=None)  # You can replace callbacks with your custom sync/async funcion!
 ```
 
+# 📦 Applying enviroment (.env) variables
+
+If you want pybalt to always use your proxy, user agent or something else you can configure enviroment variables, pybalt will use them if none was provided as a parameter.
+
+```sh
+COBALT_PROXY=http://...
+COBALT_USER_AGENT=...
+COBALT_TIMEOUT=12
+COBALT_API_KEY=key
+COBALT_DEBUG=true
+COBALT_LOCAL_INSTANCE=http://127.0.0.1:9000
+COBALT_LOCAL_INSTANCE_API_KEY=ye
+```
+
 # 👥 Used by
 
 pybalt is used by the following projects:
