@@ -453,7 +453,9 @@ class Downloader:
         self.__dict__.update(kwargs)
 
 
-download = Cobalt().download
+DefaultCobalt = Cobalt()
+download = DefaultCobalt.download
+get_tunnel = DefaultCobalt.get_tunnel
 
 
 load_dotenv()
