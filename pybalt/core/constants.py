@@ -1,5 +1,1 @@
-VERSION = "2025.2.1"
-FALLBACK_INSTANCE = "https://dwnld.nichind.dev"
-FALLBACK_INSTANCE_API_KEY = "b05007aa-bb63-4267-a66e-78f8e10bf9bf"
-DEFAULT_UA = "pybalt/python"
-DEFAULT_TIMEOUT = 12
+VERSION = "2025.4.1"

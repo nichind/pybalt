@@ -1,7 +1,5 @@
 aiohttp
 aiofiles
-requests
 python-dotenv
-pytube
 rich
 setuptools

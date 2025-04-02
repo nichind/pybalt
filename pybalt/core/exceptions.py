@@ -1,27 +1,19 @@
-class BaseException(Exception):
-    def __init__(self, message: str):
-        self.message = message
+class HttpClientError(Exception):
+    """Base exception for HTTP client errors."""
+    pass
 
-    def __str__(self):
-        return f"{self.__class__.__name__}: {self.message}"
+class RequestError(HttpClientError):
+    """Exception raised for errors during HTTP requests."""
+    pass
 
+class PageNotFound(RequestError):
+    """Exception raised when a 404 response is received."""
+    pass
 
-class FailedToGetTunnel(BaseException): ...
+class RateLimitExceeded(RequestError):
+    """Exception raised when rate limits are exceeded."""
+    pass
 
-
-class NoUrlInTunnelResponse(BaseException): ...
-
-
-class InvalidURL(BaseException): ...
-
-
-class FetchError(BaseException): ...
-
-
-class PageNotFound(BaseException): ...
-
-
-class AllInstancesFailed(BaseException): ...
-
-
-class DownloadError(BaseException): ...
+class DownloadError(HttpClientError):
+    """Exception raised for errors during file downloads."""
+    pass
