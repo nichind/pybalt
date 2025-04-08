@@ -1,0 +1,9 @@
+UPDATE_AVALIABLE=pybalt {last_version} доступен (текущий: {current_version}). Обновите с помощью pip install pybalt -U
+PACKAGE_NOT_FOUND=pybalt не установлен. Игнорируйте, если запускаете как разработчик
+UPDATE_CHECK_FAIL=Не удалось проверить обновления: {error}
+INVALID_URL=ссылка {url} недействительна - {error}
+CONTENT_GET_ERROR=Не удалось получить контент по ссылке {url} - {error}
+INVALID_BODY=Запрос недействителен - {error}
+AUTH_ERROR=Ошибка аутентификации - {error}
+FETCH_ERROR=Не удалось скачать {url} с сервера {api_instance}, попытаюсь с другим сервером...\r
+CANNOT_REACH=Не удается связаться с сервером {api_instance}

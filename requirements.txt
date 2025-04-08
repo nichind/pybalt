@@ -1,5 +1,5 @@
 aiohttp
 aiofiles
 python-dotenv
-rich
 setuptools
+prompt_toolkit

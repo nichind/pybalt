@@ -1,7 +1,0 @@
-version = 1
-requires-python = ">=3.11"
-
-[[package]]
-name = "pybalt"
-version = "2025.4.1"
-source = { editable = "." }
