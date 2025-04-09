@@ -3,3 +3,5 @@ aiofiles
 python-dotenv
 setuptools
 prompt_toolkit
+pyyaml
+click
