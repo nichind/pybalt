@@ -481,6 +481,7 @@ def create_cli_app(config: Config):
             self.edit_mode = False
             self.edit_value = ""
             self.message = ""
+            self.confirm_reset = False  # New state for confirmation
 
     state = AppState()
 
@@ -536,6 +537,30 @@ def create_cli_app(config: Config):
             state.options = config.get_options(state.current_section)
             state.current_option_idx = len(state.options) - 1 if state.options else -1
             state.current_option = state.options[-1] if state.options else None
+
+    @kb.add("right")
+    def _(event):
+        if state.edit_mode:
+            return
+
+        if state.current_section_idx < len(state.sections) - 1:
+            state.current_section_idx += 1
+            state.current_section = state.sections[state.current_section_idx]
+            state.options = config.get_options(state.current_section)
+            state.current_option_idx = 0 if state.options else -1
+            state.current_option = state.options[0] if state.options else None
+
+    @kb.add("left")
+    def _(event):
+        if state.edit_mode:
+            return
+
+        if state.current_section_idx > 0:
+            state.current_section_idx -= 1
+            state.current_section = state.sections[state.current_section_idx]
+            state.options = config.get_options(state.current_section)
+            state.current_option_idx = 0 if state.options else -1
+            state.current_option = state.options[0] if state.options else None
 
     def is_valid_number(value, option):
         """Validate if a string is a valid number for a NUMBER_SETTINGS option."""
@@ -596,6 +621,9 @@ def create_cli_app(config: Config):
         if state.edit_mode:
             state.edit_mode = False
             state.message = "Edit cancelled"
+        elif state.confirm_reset:  # Also handle cancellation of reset confirmation
+            state.confirm_reset = False
+            state.message = "Reset cancelled"
 
     @kb.add("backspace")
     def _(event):
@@ -617,10 +645,9 @@ def create_cli_app(config: Config):
     @kb.add("c-r")
     def _(event):
         if not state.edit_mode:
-            config.reset_all_to_defaults()
-            state.message = "Reset all settings to default values"
-            # Refresh options
-            state.options = config.get_options(state.current_section)
+            # Instead of immediately resetting, ask for confirmation
+            state.confirm_reset = True
+            state.message = "Reset ALL settings to defaults? Press Y to confirm, N to cancel"
 
     @kb.add("f2")
     def _(event):
@@ -641,13 +668,29 @@ def create_cli_app(config: Config):
 
         @kb.add(key)
         def handle_char(event, key=key):
-            if state.edit_mode:
+            if state.confirm_reset and key.lower() in ("y", "n"):
+                if key.lower() == "n":
+                    state.message = "Reset cancelled"
+                    state.confirm_reset = False
+                else:
+                    config.reset_all_to_defaults()
+                    state.message = "Reset all settings to default values"
+                    state.options = config.get_options(state.current_section)
+                    state.confirm_reset = False
+            elif state.edit_mode:
                 state.edit_value += key
 
     # UI rendering function
     def get_formatted_text():
         result = []
         result.append(("class:title", "╔═══ github.com/nichind/pybalt ════╗\n"))
+
+        # Show confirmation message when in confirm_reset mode
+        if state.confirm_reset:
+            result.append(("class:warning", "WARNING: You are about to reset ALL settings to defaults!\n"))
+            result.append(("class:warning", "Press Y to confirm, N to cancel\n"))
+            result.append(("class:footer", "╚══════════════════════════════════╝\n"))
+            return result
 
         # Build sections and options
         for i, section in enumerate(state.sections):
@@ -691,7 +734,9 @@ def create_cli_app(config: Config):
         result.append(
             (
                 "class:help",
-                "Controls: ↑/↓: Navigate | Enter: Edit | Esc: Cancel | Ctrl+D: Reset to Default | Ctrl+R: Reset All | F2: Open in Explorer | Ctrl+C: Exit\n",
+                "Controls: ↑/↓: Navigate options | ←/→: Navigate sections\n" +
+                "Enter: Edit/Toggle | Esc: Cancel | Ctrl+D: Reset option\n" +
+                "Ctrl+R: Reset All | F2: Open in Explorer | Ctrl+C: Exit\n",
             )
         )
 
@@ -713,6 +758,7 @@ def create_cli_app(config: Config):
             "footer": "bg:#004400 #ffffff",
             "help": "#888888",
             "message": "bold #ff8800",
+            "warning": "bg:#880000 #ffffff bold",  # New style for warnings
         }
     )
 
