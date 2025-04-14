@@ -725,9 +725,48 @@ class HttpClient:
             url, method="post", data=data, headers=headers, timeout=timeout, **kwargs
         )
 
+    async def _get_auth_headers_for_url(self, url: str, api_key: str = None, bearer: str = None) -> Dict[str, str]:
+        """
+        Get authorization headers for a URL based on provided credentials or user instances.
+        
+        Args:
+            url: The URL to get headers for
+            api_key: Optional API key to use (takes precedence over instance API key)
+            bearer: Optional bearer token to use (takes precedence over API key)
+            
+        Returns:
+            Dictionary of headers to add
+        """
+        headers = {}
+        
+        # If bearer token is provided, it takes precedence
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
+            return headers
+            
+        # If API key is provided, use it
+        if api_key:
+            headers["Authorization"] = f"Api-Key {api_key}"
+            return headers
+            
+        # Otherwise, check if URL matches any user instance
+        user_instances = self.config.get_user_instances()
+        for instance in user_instances:
+            # Check if URL starts with this instance URL
+            if url.startswith(instance["url"]) and instance["api_key"]:
+                headers["Authorization"] = f"Api-Key {instance['api_key']}"
+                return headers
+                
+        # If no match found, check for default API key in config
+        default_api_key = self.config.get("api_key", "", section="instances")
+        if default_api_key:
+            headers["Authorization"] = f"Api-Key {default_api_key}"
+            
+        return headers
+
     async def bulk_request(
         self,
-        urls: List[str],
+        urls: List[Union[str, Dict[str, str]]],
         method: Literal["get", "post"] = "get",
         **kwargs,
     ) -> Response:
@@ -758,13 +797,25 @@ class HttpClient:
             session = await self._ensure_session()
 
             # Define helper that returns as soon as a successful response is found
-            async def safe_request(url: str) -> Tuple[bool, Response]:
+            async def safe_request(url_data: Union[str, Dict[str, str]]) -> Tuple[bool, Response]:
                 nonlocal found_success
                 try:
+                    # Process URL and credentials
+                    url = url_data if isinstance(url_data, str) else url_data.get("url")
+                    api_key = None if isinstance(url_data, str) else url_data.get("api_key")
+                    bearer = None if isinstance(url_data, str) else url_data.get("bearer")
+                    
                     # Check if we should bypass proxy for this URL
                     request_kwargs = kwargs.copy()
                     if "proxy" not in request_kwargs:
                         request_kwargs["proxy"] = self._get_effective_proxy(url)
+                        
+                    # Add authorization headers if needed
+                    auth_headers = await self._get_auth_headers_for_url(url, api_key, bearer)
+                    if auth_headers:
+                        request_headers = request_kwargs.get("headers", {}).copy() if "headers" in request_kwargs else self.headers.copy() if self.headers else {}
+                        request_headers.update(auth_headers)
+                        request_kwargs["headers"] = request_headers
 
                     # Don't close the session in individual requests
                     response = await self.request(
@@ -834,7 +885,7 @@ class HttpClient:
 
     async def bulk_get(
         self,
-        urls: List[str],
+        urls: List[Union[str, Dict[str, str]]],
         params: Dict = None,
         headers: Dict[str, str] = None,
         timeout: int = None,
@@ -843,7 +894,7 @@ class HttpClient:
         """Make concurrent GET requests to multiple URLs and return the first successful response.
 
         Args:
-            urls: List of URLs to request
+            urls: List of URLs to request (either string or dict with "url", optional "api_key" and "bearer")
             params: URL parameters
             headers: Request headers
             timeout: Request timeout
@@ -863,7 +914,7 @@ class HttpClient:
 
     async def bulk_post(
         self,
-        urls: List[str],
+        urls: List[Union[str, Dict[str, str]]],
         data: Dict = None,
         headers: Dict[str, str] = None,
         timeout: int = None,
@@ -872,7 +923,7 @@ class HttpClient:
         """Make concurrent POST requests to multiple URLs and return the first successful response.
 
         Args:
-            urls: List of URLs to request
+            urls: List of URLs to request (either string or dict with "url", optional "api_key" and "bearer")
             data: JSON data to send
             headers: Request headers
             timeout: Request timeout
@@ -885,6 +936,202 @@ class HttpClient:
             urls, method="post", data=data, headers=headers, timeout=timeout, **kwargs
         )
 
+    async def _download_and_track(
+        self, url_data: Union[str, Dict[str, str]], options: Dict
+    ) -> Tuple[str, Optional[Path], Optional[Exception]]:
+        """Helper method for bulk_download to handle individual downloads with error tracking."""
+        try:
+            # Process URL and credentials
+            if isinstance(url_data, str):
+                url = url_data
+                download_options = options.copy()
+                download_options["url"] = url
+            else:
+                url = url_data["url"]
+                download_options = options.copy()
+                download_options["url"] = url
+                
+                # Add API key and bearer if present
+                if "api_key" in url_data:
+                    download_options["api_key"] = url_data["api_key"]
+                if "bearer" in url_data:
+                    download_options["bearer"] = url_data["bearer"]
+            
+            file_path = await self.download_file(**download_options)
+            return url, file_path, None
+        except Exception as e:
+            if self.debug:
+                logger.debug(f"Download failed for {url}: {str(e)}")
+            return url, None, e
+
+    async def bulk_download(
+        self,
+        urls: List[Union[str, Dict[str, str]]],
+        folder_path: str = None,
+        max_concurrent: int = None,
+        **options,
+    ) -> List[Tuple[str, Path, Exception]]:
+        """
+        Download multiple files concurrently with a limit on maximum parallel downloads.
+
+        Args:
+            urls: List of URLs to download (either string or dict with "url", optional "api_key" and "bearer")
+            folder_path: Download destination folder
+            max_concurrent: Maximum number of concurrent downloads
+            **options: Additional options to pass to download_file
+
+        Returns:
+            List of tuples containing (url, file_path, exception) for each download
+            If exception is None, the download was successful
+        """
+        import asyncio
+        from collections import deque
+
+        # Check if bulk downloads are allowed in config
+        if not self.config.get("allow_bulk_download", True, section="misc"):
+            raise Exception("Bulk downloads are disabled in configuration")
+
+        if not urls:
+            return []
+
+        # Use config for default folder path if not specified
+        if not folder_path:
+            folder_path = self.config.get(
+                "default_downloads_dir", str(Path.home() / "Downloads"), section="paths"
+            )
+
+        # Use config for max_concurrent if not specified
+        if max_concurrent is None:
+            max_concurrent = self.config.get_as_number(
+                "max_concurrent_downloads", 3, section="network"
+            )
+
+        if self.debug:
+            logger.debug(
+                f"Starting bulk download of {len(urls)} files, max_concurrent={max_concurrent}"
+            )
+
+        results = []
+        active_tasks = set()
+        url_queue = deque(urls)
+
+        # Process downloads until the queue is empty and all active tasks are done
+        while url_queue or active_tasks:
+            # Start new downloads if under the concurrent limit and URLs are available
+            while len(active_tasks) < max_concurrent and url_queue:
+                url_data = url_queue.popleft()
+                
+                # Set up download options
+                download_options = options.copy()
+                download_options["folder_path"] = folder_path
+
+                # Use config values for defaults if not in options
+                if "callback_rate" not in download_options:
+                    download_options["callback_rate"] = self.config.get_as_number(
+                        "callback_rate", 0.128, section="network"
+                    )
+
+                if "timeout" not in download_options:
+                    download_options["timeout"] = self.config.get_as_number(
+                        "timeout", 30, section="network"
+                    )
+
+                # Create task
+                task = asyncio.create_task(
+                    self._download_and_track(url_data, download_options)
+                )
+                active_tasks.add(task)
+                # Add callback to remove the task when done
+                task.add_done_callback(active_tasks.discard)
+
+                if self.debug:
+                    url = url_data if isinstance(url_data, str) else url_data.get("url")
+                    logger.debug(
+                        f"Added download task for {url}, active tasks: {len(active_tasks)}"
+                    )
+
+            # Wait a bit if we have active tasks, otherwise we're done
+            if active_tasks:
+                await asyncio.sleep(0.1)  # Small sleep to prevent CPU spinning
+
+                # Check for completed tasks and collect results
+                for task in list(active_tasks):
+                    if task.done():
+                        try:
+                            url, path, error = task.result()
+                            results.append((url, path, error))
+                            if self.debug:
+                                status = "failed" if error else "completed"
+                                logger.debug(f"Download of {url} {status}")
+                        except Exception as e:
+                            # This should not happen as exceptions are handled in _download_and_track
+                            if self.debug:
+                                logger.debug(
+                                    f"Unexpected error in bulk download: {str(e)}"
+                                )
+
+        if self.debug:
+            successful = len([r for r in results if r[2] is None])
+            logger.debug(
+                f"Bulk download completed: {successful}/{len(results)} successful"
+            )
+
+        return results
+
+    async def bulk_detached_download(
+        self,
+        urls: List[Union[str, Dict[str, str]]],
+        folder_path: str = None,
+        max_concurrent: int = None,
+        **options,
+    ) -> asyncio.Task:
+        """
+        Start a bulk download operation in a detached task that runs in the background.
+        
+        Args:
+            urls: List of URLs to download (either string or dict with "url", optional "api_key" and "bearer")
+            folder_path: Download destination folder
+            max_concurrent: Maximum number of concurrent downloads
+            **options: Additional options to pass to download_file
+
+        Returns:
+            asyncio.Task: The task handling the bulk download, which can be awaited or monitored
+        """
+        import asyncio
+
+        # Check if bulk downloads are allowed in config
+        if not self.config.get("allow_bulk_download", True, section="misc"):
+            raise Exception("Bulk downloads are disabled in configuration")
+
+        # Apply configuration defaults if not explicitly provided
+        if folder_path is None:
+            folder_path = self.config.get(
+                "default_downloads_dir", str(Path.home() / "Downloads"), section="paths"
+            )
+
+        if max_concurrent is None:
+            max_concurrent = self.config.get_as_number(
+                "max_concurrent_downloads", 3, section="network"
+            )
+
+        # Create a task for the bulk download
+        bulk_task = asyncio.create_task(
+            self.bulk_download(
+                urls=urls, 
+                folder_path=folder_path, 
+                max_concurrent=max_concurrent, 
+                **options
+            )
+        )
+
+        # Add name to the task for easier debugging
+        bulk_task.set_name(f"BulkDownload_{len(urls)}_files")
+
+        if self.debug:
+            logger.debug(f"Started detached bulk download task for {len(urls)} URLs")
+
+        return bulk_task
+
     async def download_file(
         self,
         **options: Unpack[DownloadOptions],
@@ -894,6 +1141,19 @@ class HttpClient:
         url = options.get("url")
         if not url:
             raise ValueError("URL is required for downloading files")
+
+        # Get API key and bearer token if provided
+        api_key = options.get("api_key")
+        bearer = options.get("bearer")
+        
+        # Get authorization headers if needed
+        auth_headers = await self._get_auth_headers_for_url(url, api_key, bearer)
+        
+        # Merge authorization headers with existing headers
+        if auth_headers:
+            request_headers = options.get("headers", {}).copy() if "headers" in options else self.headers.copy() if self.headers else {}
+            request_headers.update(auth_headers)
+            options["headers"] = request_headers
 
         # Debug logging
         if self.debug:
@@ -1326,186 +1586,6 @@ class HttpClient:
             logger.debug(f"Started detached download task for: {options.get('url')}")
 
         return download_task
-
-    async def bulk_download(
-        self,
-        urls: List[str],
-        folder_path: str = None,
-        max_concurrent: int = None,
-        **options,
-    ) -> List[Tuple[str, Path, Exception]]:
-        """
-        Download multiple files concurrently with a limit on maximum parallel downloads.
-
-        Args:
-            urls: List of URLs to download
-            folder_path: Download destination folder
-            max_concurrent: Maximum number of concurrent downloads
-            **options: Additional options to pass to download_file
-
-        Returns:
-            List of tuples containing (url, file_path, exception) for each download
-            If exception is None, the download was successful
-        """
-        import asyncio
-        from collections import deque
-
-        # Check if bulk downloads are allowed in config
-        if not self.config.get("allow_bulk_download", True, section="misc"):
-            raise Exception("Bulk downloads are disabled in configuration")
-
-        if not urls:
-            return []
-
-        # Use config for default folder path if not specified
-        if not folder_path:
-            folder_path = self.config.get(
-                "default_downloads_dir", str(Path.home() / "Downloads"), section="paths"
-            )
-
-        # Use config for max_concurrent if not specified
-        if max_concurrent is None:
-            max_concurrent = self.config.get_as_number(
-                "max_concurrent_downloads", 3, section="network"
-            )
-
-        if self.debug:
-            logger.debug(
-                f"Starting bulk download of {len(urls)} files, max_concurrent={max_concurrent}"
-            )
-
-        results = []
-        active_tasks = set()
-        url_queue = deque(urls)
-
-        # Process downloads until the queue is empty and all active tasks are done
-        while url_queue or active_tasks:
-            # Start new downloads if under the concurrent limit and URLs are available
-            while len(active_tasks) < max_concurrent and url_queue:
-                url = url_queue.popleft()
-
-                # Set up download options
-                download_options = options.copy()
-                download_options["url"] = url
-                download_options["folder_path"] = folder_path
-
-                # Use config values for defaults if not in options
-                if "callback_rate" not in download_options:
-                    download_options["callback_rate"] = self.config.get_as_number(
-                        "callback_rate", 0.128, section="network"
-                    )
-
-                if "timeout" not in download_options:
-                    download_options["timeout"] = self.config.get_as_number(
-                        "timeout", 30, section="network"
-                    )
-
-                # Create task
-                task = asyncio.create_task(
-                    self._download_and_track(url, download_options)
-                )
-                active_tasks.add(task)
-                # Add callback to remove the task when done
-                task.add_done_callback(active_tasks.discard)
-
-                if self.debug:
-                    logger.debug(
-                        f"Added download task for {url}, active tasks: {len(active_tasks)}"
-                    )
-
-            # Wait a bit if we have active tasks, otherwise we're done
-            if active_tasks:
-                await asyncio.sleep(0.1)  # Small sleep to prevent CPU spinning
-
-                # Check for completed tasks and collect results
-                for task in list(active_tasks):
-                    if task.done():
-                        try:
-                            url, path, error = task.result()
-                            results.append((url, path, error))
-                            if self.debug:
-                                status = "failed" if error else "completed"
-                                logger.debug(f"Download of {url} {status}")
-                        except Exception as e:
-                            # This should not happen as exceptions are handled in _download_and_track
-                            if self.debug:
-                                logger.debug(
-                                    f"Unexpected error in bulk download: {str(e)}"
-                                )
-
-        if self.debug:
-            successful = len([r for r in results if r[2] is None])
-            logger.debug(
-                f"Bulk download completed: {successful}/{len(results)} successful"
-            )
-
-        return results
-
-    async def _download_and_track(
-        self, url: str, options: Dict
-    ) -> Tuple[str, Optional[Path], Optional[Exception]]:
-        """Helper method for bulk_download to handle individual downloads with error tracking."""
-        try:
-            file_path = await self.download_file(**options)
-            return url, file_path, None
-        except Exception as e:
-            if self.debug:
-                logger.debug(f"Download failed for {url}: {str(e)}")
-            return url, None, e
-
-    async def bulk_detached_download(
-        self,
-        urls: List[str],
-        folder_path: str = None,
-        max_concurrent: int = None,
-        **options,
-    ) -> asyncio.Task:
-        """
-        Start a bulk download operation in a detached task that runs in the background.
-        
-        Args:
-            urls: List of URLs to download
-            folder_path: Download destination folder
-            max_concurrent: Maximum number of concurrent downloads
-            **options: Additional options to pass to download_file
-
-        Returns:
-            asyncio.Task: The task handling the bulk download, which can be awaited or monitored
-        """
-        import asyncio
-
-        # Check if bulk downloads are allowed in config
-        if not self.config.get("allow_bulk_download", True, section="misc"):
-            raise Exception("Bulk downloads are disabled in configuration")
-
-        # Apply configuration defaults if not explicitly provided
-        if folder_path is None:
-            folder_path = self.config.get(
-                "default_downloads_dir", str(Path.home() / "Downloads"), section="paths"
-            )
-
-        if max_concurrent is None:
-            max_concurrent = self.config.get_as_number(
-                "max_concurrent_downloads", 3, section="network"
-            )
-
-        # Create a task for the bulk download
-        bulk_task = asyncio.create_task(
-            self.bulk_download(
-                urls=urls, 
-                folder_path=folder_path, 
-                max_concurrent=max_concurrent, 
-                **options
-            )
-        )
-
-        # Add name to the task for easier debugging
-        bulk_task.set_name(f"BulkDownload_{len(urls)}_files")
-
-        if self.debug:
-            logger.debug(f"Started detached bulk download task for {len(urls)} URLs")
-
-        return bulk_task
 
     async def __aenter__(self):
         """Async context manager entry point."""

@@ -55,7 +55,7 @@ class Config:
             "instance_list_api": "https://instances.cobalt.best/api/instances.json",
             "fallback_instance": "https://dwnld.nichind.dev",
             "fallback_instance_api_key": "b05007aa-bb63-4267-a66e-78f8e10bf9bf",
-            "api_key": "",  # Api key to try to use on every known instance
+            "api_key": "",  # Api key to try to use on every instance
         },
         "user_instances": {
             # This section will store user-defined instances

@@ -82,10 +82,10 @@ class Remuxer:
                 if data.get("progress", "") == "end":
                     break
                 logger.debug(
-                    f'Remuxing status: {data.get("progress", "unknown")} speed: {data.get("speed", "0.00x")} :green:{data.get("fps", "0.00")}fps :yellow:frame {data.get("frame", "0")}',
+                    f'Remuxing status: {data.get("progress", "unknown")} speed: {data.get("speed", "0.00x")} {data.get("fps", "0.00")}fps frame {data.get("frame", "0")}',
                 )
         except Exception as e:
-            logger.debug(f":red:Remuxing {path.name} to {output} failed: {e}")
+            logger.debug(f":Remuxing {path.name} to {output} failed: {e}")
             return path
         if progress_file.exists():
             progress_file.unlink()
@@ -93,8 +93,8 @@ class Remuxer:
             path.unlink()
             output = output.rename(path)
         logger.debug(
-            f"✔  Remux result: {output}"
-            f"{output.stat().st_size / 1024 / 1024:.2f}MB :cyan:{time() - start_time:.2f}s",
+            f"Remux result: {output}"
+            f"{output.stat().st_size / 1024 / 1024:.2f}MB {time() - start_time:.2f}s",
         )
         return output
 
