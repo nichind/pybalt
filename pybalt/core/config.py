@@ -4,7 +4,7 @@ import platform
 from pathlib import Path
 import sys
 import subprocess
-from typing import Optional, Dict, Any, List, Tuple, Union
+from typing import Optional, Dict, Any, List, Union
 from asyncio import get_event_loop, new_event_loop
 
 try:
@@ -26,11 +26,11 @@ except ImportError:
 
 class Config:
     """
-    Configuration handler for PyBalt.
+    Configuration handler for pybalt.
     Manages settings in ~/.config/pybalt/settings.ini.
     """
 
-    # Configuration values organized by section
+    # DEFAULT configuration values organized by section
     VALUES = {
         "general": {
             "user_agent": "github.com/nichind/pybalt, tool/python-module, :)",
@@ -40,12 +40,13 @@ class Config:
             "use_system_proxy": "True",
             "proxy": "",
             "timeout": "30",
-            "download_timeout": "300",  # 5 minutes default for downloads
+            "download_timeout": "300",
             "max_retries": "5",
-            "download_retries": "3",    # Specific retries for downloads
+            "download_retries": "3",
             "retry_delay": "1.0",
             "callback_rate": "1.000",
             "max_concurrent_downloads": "3",
+            "download_buffer_size": "1048576",  # equals to 1 Mb
             "bypass_proxy_for_localhost": "True",
             "network_mode": "host",
             "progressive_timeout": "True",
@@ -54,9 +55,11 @@ class Config:
             "instance_list_api": "https://instances.cobalt.best/api/instances.json",
             "fallback_instance": "https://dwnld.nichind.dev",
             "fallback_instance_api_key": "b05007aa-bb63-4267-a66e-78f8e10bf9bf",
-            "preferred_instance": "",
-            "preferred_instance_api_key": "",
-            "api_key": "",
+            "api_key": "",  # Api key to try to use on every known instance
+        },
+        "user_instances": {
+            # This section will store user-defined instances
+            # Format: instance_1, instance_1_api_key, instance_2, instance_2_api_key, etc.
         },
         "paths": {
             "default_downloads_dir": str(Path.home() / "Downloads"),
@@ -66,6 +69,7 @@ class Config:
             "use_pc_proxy": "False",
             "proxy_url": "",
         },
+        "ffmpeg": {"remux_args": "-hwaccel opencl", "keep_original": "True"},
         "misc": {
             "ignore_updates": "False",
             "last_update_check": "0",
@@ -76,7 +80,7 @@ class Config:
         },
     }
 
-    # Settings that should be converted to numbers (int or float) when retrieved
+    # Settings that should be converted to numbers (int or float) when retrieved and changed in the config gui
     NUMBER_SETTINGS = {
         "timeout",
         "download_timeout",
@@ -86,6 +90,7 @@ class Config:
         "callback_rate",
         "local_instance_port",
         "max_concurrent_downloads",
+        "download_buffer_size",
     }
 
     def __init__(self):
@@ -115,12 +120,12 @@ class Config:
             if key in self.key_to_section:
                 del self.key_to_section[key]
 
-    def _get_config_path(self) -> Path:
+    def _get_config_dir(self) -> Path:
         """
-        Get the platform-specific path to the configuration file.
+        Get the platform-specific path to the configuration folder.
 
         Returns:
-            Path to the configuration file.
+            Path to the configuration folder.
         """
         system = platform.system()
 
@@ -132,7 +137,16 @@ class Config:
         else:  # Linux and other Unix-like systems
             config_dir = Path.home() / ".config" / "pybalt"
 
-        return config_dir / "settings.ini"
+        return config_dir
+
+    def _get_config_path(self) -> Path:
+        """
+        Get the platform-specific path to the configuration file.
+
+        Returns:
+            Path to the configuration file.
+        """
+        return self._get_config_dir() / "settings.ini"
 
     def ensure_config_exists(self) -> None:
         """Ensure the configuration file and directory exist."""
@@ -402,6 +416,162 @@ class Config:
 
         return result
 
+    def get_user_instances(self) -> List[Dict[str, str]]:
+        """
+        Get all user-defined instances and their API keys.
+        
+        Returns:
+            List of dictionaries containing instance URLs and API keys.
+        """
+        instances = []
+        
+        if not self.config.has_section("user_instances"):
+            return instances
+            
+        options = self.config.options("user_instances")
+        
+        # Group options by instance number
+        instance_nums = set()
+        for option in options:
+            if option.startswith("instance_") and "_api_key" not in option:
+                try:
+                    num = int(option.split("_")[1])
+                    instance_nums.add(num)
+                except (ValueError, IndexError):
+                    pass
+        
+        # Collect instances with their API keys
+        for num in sorted(instance_nums):
+            instance_key = f"instance_{num}"
+            api_key_key = f"instance_{num}_api_key"
+            
+            if instance_key in options:
+                instance_url = self.config.get("user_instances", instance_key)
+                api_key = self.config.get("user_instances", api_key_key, fallback="")
+                
+                if instance_url:
+                    instances.append({
+                        "number": num,
+                        "url": instance_url,
+                        "api_key": api_key
+                    })
+        
+        return instances
+    
+    def add_user_instance(self, url: str, api_key: str = "") -> int:
+        """
+        Add a new user instance with an optional API key.
+        
+        Args:
+            url: The instance URL.
+            api_key: The API key for the instance (optional).
+            
+        Returns:
+            The instance number assigned to the new instance.
+        """
+        if not self.config.has_section("user_instances"):
+            self.config.add_section("user_instances")
+        
+        # Get existing instance numbers
+        instances = self.get_user_instances()
+        used_nums = {instance["number"] for instance in instances}
+        
+        # Find the next available number
+        next_num = 1
+        while next_num in used_nums:
+            next_num += 1
+        
+        # Add the new instance
+        self.config.set("user_instances", f"instance_{next_num}", url)
+        if api_key:
+            self.config.set("user_instances", f"instance_{next_num}_api_key", api_key)
+        
+        self.save_config()
+        return next_num
+    
+    def update_user_instance(self, num: int, url: str = None, api_key: str = None) -> bool:
+        """
+        Update an existing user instance's URL or API key.
+        
+        Args:
+            num: The instance number to update.
+            url: The new URL (optional, if not changing).
+            api_key: The new API key (optional, if not changing).
+            
+        Returns:
+            True if the instance was updated, False if not found.
+        """
+        if not self.config.has_section("user_instances"):
+            return False
+        
+        instance_key = f"instance_{num}"
+        api_key_key = f"instance_{num}_api_key"
+        
+        if instance_key not in self.config.options("user_instances"):
+            return False
+        
+        if url is not None:
+            self.config.set("user_instances", instance_key, url)
+        
+        if api_key is not None:
+            self.config.set("user_instances", api_key_key, api_key)
+        
+        self.save_config()
+        return True
+    
+    def remove_user_instance(self, num: int) -> bool:
+        """
+        Remove a user instance.
+        
+        Args:
+            num: The instance number to remove.
+            
+        Returns:
+            True if removed, False if not found.
+        """
+        if not self.config.has_section("user_instances"):
+            return False
+        
+        instance_key = f"instance_{num}"
+        api_key_key = f"instance_{num}_api_key"
+        
+        result1 = self.config.remove_option("user_instances", instance_key)
+        # Try to remove API key, but it's okay if it doesn't exist
+        result2 = self.config.remove_option("user_instances", api_key_key)
+        
+        if result1 or result2:
+            self.save_config()
+            return True
+        return False
+    
+    def get_first_user_instance(self) -> Dict[str, str]:
+        """
+        Get the first user instance for convenience.
+        
+        Returns:
+            Dictionary with url and api_key, or empty dict if none exists.
+        """
+        instances = self.get_user_instances()
+        if instances:
+            return {"url": instances[0]["url"], "api_key": instances[0]["api_key"]}
+        return {"url": "", "api_key": ""}
+
+    def delete_section(self, section: str) -> bool:
+        """
+        Delete a section from the configuration.
+        
+        Args:
+            section: The section to delete.
+            
+        Returns:
+            True if the section was removed, False otherwise.
+        """
+        if self.config.has_section(section):
+            self.config.remove_section(section)
+            self.save_config()
+            return True
+        return False
+
 
 def open_in_explorer(path):
     """
@@ -482,6 +652,11 @@ def create_cli_app(config: Config):
             self.edit_value = ""
             self.message = ""
             self.confirm_reset = False  # New state for confirmation
+            self.instance_mode = False  # New state for instance management
+            self.instance_action = ""   # "add", "edit", "remove"
+            self.instance_edit_step = 0  # 0=url, 1=api_key
+            self.edit_instance_num = 0   # For editing existing instances
+            self.instances = []          # Cache for user instances
 
     state = AppState()
 
@@ -624,6 +799,12 @@ def create_cli_app(config: Config):
         elif state.confirm_reset:  # Also handle cancellation of reset confirmation
             state.confirm_reset = False
             state.message = "Reset cancelled"
+        elif state.instance_mode:
+            state.instance_mode = False
+            state.instance_action = ""
+            state.instance_edit_step = 0
+            state.edit_instance_num = 0
+            state.message = "Instance management cancelled"
 
     @kb.add("backspace")
     def _(event):
@@ -647,7 +828,9 @@ def create_cli_app(config: Config):
         if not state.edit_mode:
             # Instead of immediately resetting, ask for confirmation
             state.confirm_reset = True
-            state.message = "Reset ALL settings to defaults? Press Y to confirm, N to cancel"
+            state.message = (
+                "Reset ALL settings to defaults? Press Y to confirm, N to cancel"
+            )
 
     @kb.add("f2")
     def _(event):
@@ -656,6 +839,14 @@ def create_cli_app(config: Config):
             state.message = f"Opened {config.config_path} in file explorer"
         else:
             state.message = "Failed to open file explorer"
+
+    @kb.add("c-t")  # Ctrl+T for Instance management
+    def _(event):
+        if not state.edit_mode and not state.confirm_reset:
+            state.instance_mode = True
+            state.instance_action = ""
+            state.instances = config.get_user_instances()
+            state.message = "Instance Management: (A)dd, (E)dit, (R)emove, or ESC to cancel"
 
     # Handle all printable characters for edit mode
     @kb.add_binding(" ")
@@ -677,8 +868,164 @@ def create_cli_app(config: Config):
                     state.message = "Reset all settings to default values"
                     state.options = config.get_options(state.current_section)
                     state.confirm_reset = False
+            elif state.instance_mode and not state.edit_mode:
+                # Handle instance management mode key presses
+                if state.instance_action == "" and key.lower() in ("a", "e", "r"):
+                    if key.lower() == "a":
+                        state.instance_action = "add"
+                        state.instance_edit_step = 0
+                        state.edit_mode = True
+                        state.edit_value = ""
+                        state.message = "Enter instance URL (http://example.com)"
+                    elif key.lower() == "e":
+                        if not state.instances:
+                            state.message = "No instances to edit"
+                        else:
+                            state.instance_action = "edit_select"
+                            state.message = f"Enter instance number to edit (1-{len(state.instances)})"
+                            state.edit_mode = True
+                            state.edit_value = ""
+                    elif key.lower() == "r":
+                        if not state.instances:
+                            state.message = "No instances to remove"
+                        else:
+                            state.instance_action = "remove"
+                            state.message = f"Enter instance number to remove (1-{len(state.instances)})"
+                            state.edit_mode = True
+                            state.edit_value = ""
+                elif state.edit_mode:
+                    state.edit_value += key
             elif state.edit_mode:
                 state.edit_value += key
+
+    @kb.add("enter")
+    def _(event):
+        if state.instance_mode:
+            if state.edit_mode:
+                if state.instance_action == "add":
+                    if state.instance_edit_step == 0:
+                        # Save URL and move to API key
+                        state.instance_url = state.edit_value
+                        state.instance_edit_step = 1
+                        state.edit_value = ""
+                        state.message = "Enter API key (or press Enter to skip)"
+                    elif state.instance_edit_step == 1:
+                        # Add the instance
+                        num = config.add_user_instance(state.instance_url, state.edit_value)
+                        state.message = f"Added instance #{num}: {state.instance_url}"
+                        state.edit_mode = False
+                        state.instance_mode = False
+                        state.instance_action = ""
+                        state.instance_edit_step = 0
+                        # Refresh instance list
+                        state.instances = config.get_user_instances()
+                
+                elif state.instance_action == "edit_select":
+                    try:
+                        num = int(state.edit_value)
+                        if 1 <= num <= len(state.instances):
+                            instance = next((i for i in state.instances if i["number"] == num), None)
+                            if not instance:
+                                instance = state.instances[num - 1]
+                            
+                            state.edit_instance_num = instance["number"]
+                            state.instance_action = "edit_url"
+                            state.edit_value = instance["url"]
+                            state.message = f"Edit instance URL (current: {instance['url']})"
+                        else:
+                            state.message = f"Invalid number. Enter 1-{len(state.instances)}"
+                    except ValueError:
+                        state.message = "Please enter a valid number"
+                
+                elif state.instance_action == "edit_url":
+                    # Save URL and move to API key
+                    state.instance_url = state.edit_value
+                    state.instance_action = "edit_api_key"
+                    instance = next((i for i in state.instances if i["number"] == state.edit_instance_num), None)
+                    state.edit_value = instance["api_key"] if instance else ""
+                    state.message = "Edit API key (leave empty to keep current)"
+                
+                elif state.instance_action == "edit_api_key":
+                    # Update the instance
+                    success = config.update_user_instance(state.edit_instance_num, state.instance_url, state.edit_value)
+                    if success:
+                        state.message = f"Updated instance #{state.edit_instance_num}"
+                    else:
+                        state.message = f"Failed to update instance #{state.edit_instance_num}"
+                    
+                    state.edit_mode = False
+                    state.instance_mode = False
+                    state.instance_action = ""
+                    # Refresh instance list
+                    state.instances = config.get_user_instances()
+                
+                elif state.instance_action == "remove":
+                    try:
+                        num = int(state.edit_value)
+                        if 1 <= num <= len(state.instances):
+                            instance = next((i for i in state.instances if i["number"] == num), None)
+                            if not instance:
+                                instance = state.instances[num - 1]
+                                num = instance["number"]
+                            else:
+                                num = instance["number"]
+                            
+                            if config.remove_user_instance(num):
+                                state.message = f"Removed instance #{num}"
+                            else:
+                                state.message = f"Failed to remove instance #{num}"
+                        else:
+                            state.message = f"Invalid number. Enter 1-{len(state.instances)}"
+                    except ValueError:
+                        state.message = "Please enter a valid number"
+                    
+                    state.edit_mode = False
+                    state.instance_mode = False
+                    state.instance_action = ""
+                    # Refresh instance list
+                    state.instances = config.get_user_instances()
+            
+            return
+
+        if state.edit_mode:
+            # Validate number settings before saving
+            if (
+                state.current_option
+                and state.current_section
+                and state.current_option in config.NUMBER_SETTINGS
+                and not is_valid_number(state.edit_value, state.current_option)
+            ):
+                state.message = f"Invalid number format for {state.current_option}. Changes not saved."
+            else:
+                # Save and exit edit mode
+                if state.current_option and state.current_section:
+                    config.set(
+                        state.current_option, state.edit_value, state.current_section
+                    )
+                    state.message = f"Updated {state.current_section}.{state.current_option} to '{state.edit_value}'"
+            state.edit_mode = False
+        else:
+            # Check if selected option has a boolean value
+            if state.current_option and state.current_section:
+                current_value = config.get(
+                    state.current_option, section=state.current_section
+                )
+
+                # If it's a boolean value, toggle it
+                if is_boolean_value(current_value):
+                    new_value = toggle_boolean(current_value)
+                    # Convert to string for storage in config
+                    str_value = str(new_value)
+                    config.set(state.current_option, str_value, state.current_section)
+                    state.message = f"Toggled {state.current_section}.{state.current_option} to '{str_value}'"
+                # Otherwise enter edit mode as usual
+                else:
+                    state.edit_mode = True
+                    value = config.get(
+                        state.current_option, fallback="", section=state.current_section
+                    )
+                    # Convert any value back to string for editing
+                    state.edit_value = str(value)
 
     # UI rendering function
     def get_formatted_text():
@@ -687,9 +1034,51 @@ def create_cli_app(config: Config):
 
         # Show confirmation message when in confirm_reset mode
         if state.confirm_reset:
-            result.append(("class:warning", "WARNING: You are about to reset ALL settings to defaults!\n"))
+            result.append(
+                (
+                    "class:warning",
+                    "WARNING: You are about to reset ALL settings to defaults!\n",
+                )
+            )
             result.append(("class:warning", "Press Y to confirm, N to cancel\n"))
             result.append(("class:footer", "╚══════════════════════════════════╝\n"))
+            return result
+
+        # Show instance management UI when in instance mode
+        if state.instance_mode:
+            result.append(("class:section", "=== Instance Management ===\n"))
+            
+            if state.instances:
+                for idx, instance in enumerate(state.instances, 1):
+                    result.append(("class:option", f"{idx}. {instance['url']}\n"))
+                    if instance['api_key']:
+                        result.append(("class:value", f"   API Key: {instance['api_key']}\n"))
+                    else:
+                        result.append(("class:value", f"   API Key: <none>\n"))
+            else:
+                result.append(("class:option", "No instances configured\n"))
+            
+            result.append(("class:section", "==========================\n"))
+            
+            if not state.instance_action:
+                result.append(("class:help", "Press: (A)dd, (E)dit, (R)emove, or ESC to cancel\n"))
+            
+            result.append(("class:footer", "╚══════════════════════════════════╝\n"))
+            
+            # Controls help
+            result.append(
+                ("class:help", "Ctrl+C: Exit\n")
+            )
+            
+            # Status message
+            if state.message:
+                result.append(("class:message", f"Status: {state.message}\n"))
+                
+            # Edit field if in edit mode
+            if state.edit_mode:
+                result.append(("class:edit", f"> {state.edit_value}"))
+                result.append(("class:cursor", "█\n"))
+                
             return result
 
         # Build sections and options
@@ -703,30 +1092,43 @@ def create_cli_app(config: Config):
             if i == state.current_section_idx:
                 options = config.get_options(section)
 
-                for j, option in enumerate(options):
-                    value = config.get(option, fallback="", section=section)
-                    prefix = "→ " if j == state.current_option_idx else "  "
-                    style = (
-                        "class:highlight"
-                        if j == state.current_option_idx
-                        else "class:option"
-                    )
-
-                    # Add indicator for numeric options
-                    option_display = (
-                        f"{option} [#]" if option in config.NUMBER_SETTINGS else option
-                    )
-
-                    if (
-                        state.edit_mode
-                        and i == state.current_section_idx
-                        and j == state.current_option_idx
-                    ):
-                        result.append((style, f"{prefix}{option_display} = "))
-                        result.append(("class:edit", f"{state.edit_value}"))
-                        result.append(("class:cursor", "█\n"))
+                # Special handling for user_instances section to show them in a nicer format
+                if section == "user_instances":
+                    instances = config.get_user_instances()
+                    if instances:
+                        for instance in instances:
+                            result.append(("class:option", f"  Instance #{instance['number']}: {instance['url']}\n"))
+                            result.append(("class:value", f"    API Key: {instance['api_key'] or '<none>'}\n"))
                     else:
-                        result.append((style, f"{prefix}{option_display} = {value}\n"))
+                        result.append(("class:option", "  No instances configured\n"))
+                    
+                    result.append(("class:help", "  Press Ctrl+T to manage instances\n"))
+                else:
+                    # Normal section display
+                    for j, option in enumerate(options):
+                        value = config.get(option, fallback="", section=section)
+                        prefix = "→ " if j == state.current_option_idx else "  "
+                        style = (
+                            "class:highlight"
+                            if j == state.current_option_idx
+                            else "class:option"
+                        )
+
+                        # Add indicator for numeric options
+                        option_display = (
+                            f"{option} [#]" if option in config.NUMBER_SETTINGS else option
+                        )
+
+                        if (
+                            state.edit_mode
+                            and i == state.current_section_idx
+                            and j == state.current_option_idx
+                        ):
+                            result.append((style, f"{prefix}{option_display} = "))
+                            result.append(("class:edit", f"{state.edit_value}"))
+                            result.append(("class:cursor", "█\n"))
+                        else:
+                            result.append((style, f"{prefix}{option_display} = {value}\n"))
 
         result.append(("class:footer", "╚══════════════════════════════════╝\n"))
 
@@ -734,9 +1136,9 @@ def create_cli_app(config: Config):
         result.append(
             (
                 "class:help",
-                "Controls: ↑/↓: Navigate options | ←/→: Navigate sections\n" +
-                "Enter: Edit/Toggle | Esc: Cancel | Ctrl+D: Reset option\n" +
-                "Ctrl+R: Reset All | F2: Open in Explorer | Ctrl+C: Exit\n",
+                "Controls: ↑/↓: Navigate options | ←/→: Navigate sections\n"
+                + "Enter: Edit/Toggle | Esc: Cancel | Ctrl+D: Reset option\n"
+                + "Ctrl+R: Reset All | Ctrl+T: Manage Instances | F2: Open in Explorer | Ctrl+C: Exit\n",
             )
         )
 
@@ -921,4 +1323,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # Start the gui if the script was called directly
     main()

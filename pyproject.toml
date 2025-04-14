@@ -54,4 +54,4 @@ packages = ["pybalt"]
 pybalt = ["locales/*.txt"]
 
 [tool.setuptools.dynamic]
-version = {attr = "pybalt.core.constants.VERSION"}
+version = {attr = "pybalt.PYBALT_VERSION"}

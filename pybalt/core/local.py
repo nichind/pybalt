@@ -1,6 +1,4 @@
 import os
-import sys
-import shutil
 import platform
 import subprocess
 import json
@@ -8,7 +6,7 @@ from pathlib import Path
 import time
 import yaml
 import click
-from typing import Dict, Optional, List, Tuple, Union, Any
+from typing import Dict, Optional, List, Any
 
 from .config import Config
 from .client import HttpClient
@@ -192,20 +190,20 @@ To fix this issue:
         duration_limit = self.config.get("duration_limit", "10800", "local")
         cors_wildcard = self.config.get("cors_wildcard", "1", "local")
         disabled_services = self.config.get("disabled_services", "", "local")
-        
+
         # Get proxy settings
         use_pc_proxy = self.config.get("use_pc_proxy", "False", "local")
         proxy_url = self.config.get("proxy_url", "", "local")
-        
+
         # Check for proxy if enabled but not explicitly set
         if use_pc_proxy and not proxy_url:
             proxy_url = self._detect_proxy()
-            
+
         # If proxy URL contains localhost, replace with host.docker.internal for container networking
-        if proxy_url and ('localhost' in proxy_url or '127.0.0.1' in proxy_url):
-            proxy_url = proxy_url.replace('localhost', 'host.docker.internal')
-            proxy_url = proxy_url.replace('127.0.0.1', 'host.docker.internal')
-            proxy_url = proxy_url.replace('http://', '')
+        if proxy_url and ("localhost" in proxy_url or "127.0.0.1" in proxy_url):
+            proxy_url = proxy_url.replace("localhost", "host.docker.internal")
+            proxy_url = proxy_url.replace("127.0.0.1", "host.docker.internal")
+            proxy_url = proxy_url.replace("http://", "")
 
         # Create a dict for the docker-compose.yml file
         compose_data = {
@@ -234,7 +232,9 @@ To fix this issue:
 
         # Add extra_hosts configuration for Linux to enable host.docker.internal
         if platform.system() == "Linux":
-            compose_data["services"]["cobalt-api"]["extra_hosts"] = ["host.docker.internal:host-gateway"]
+            compose_data["services"]["cobalt-api"]["extra_hosts"] = [
+                "host.docker.internal:host-gateway"
+            ]
 
         # Add optional environment variables
         if api_auth_required == "1" and api_key:
@@ -250,7 +250,7 @@ To fix this issue:
             if "volumes" not in compose_data["services"]["cobalt-api"]:
                 compose_data["services"]["cobalt-api"]["volumes"] = []
             compose_data["services"]["cobalt-api"]["volumes"].append(
-                f"./keys.json:/keys.json"
+                "./keys.json:/keys.json"
             )
 
             # Create the keys.json file
@@ -547,8 +547,7 @@ Please install Docker and Docker Compose before continuing:
 
         # Ask about proxy settings
         use_pc_proxy = click.confirm(
-            "Use system proxy for the local instance?",
-            default=False
+            "Use system proxy for the local instance?", default=False
         )
 
         proxy_url = ""
@@ -562,8 +561,7 @@ Please install Docker and Docker Compose before continuing:
 
             if not detected_proxy or not use_detected:
                 proxy_url = click.prompt(
-                    "Enter proxy URL (leave empty for none)",
-                    default=""
+                    "Enter proxy URL (leave empty for none)", default=""
                 )
 
         # Save proxy settings to config
@@ -612,7 +610,7 @@ Please install Docker and Docker Compose before continuing:
             except LocalInstanceError as e:
                 click.echo(f"Failed to start instance: {e}")
         else:
-            click.echo(f"Setup completed. You can start the instance later.")
+            click.echo("Setup completed. You can start the instance later.")
             click.echo(f"Configuration directory: {self.instance_dir}")
 
 
@@ -701,9 +699,13 @@ def location():
 @click.option("--api-key", help="API key for authentication")
 @click.option("--duration-limit", type=int, help="Maximum duration limit in seconds")
 @click.option("--disabled-services", help="Comma-separated list of services to disable")
-@click.option("--use-proxy/--no-proxy", default=None, help="Use system proxy for the instance")
+@click.option(
+    "--use-proxy/--no-proxy", default=None, help="Use system proxy for the instance"
+)
 @click.option("--proxy-url", help="Proxy URL for the instance")
-def config(port, auth, api_key, duration_limit, disabled_services, use_proxy, proxy_url):
+def config(
+    port, auth, api_key, duration_limit, disabled_services, use_proxy, proxy_url
+):
     """Configure the local instance settings."""
     local_instance = LocalInstance()
     config = local_instance.config
