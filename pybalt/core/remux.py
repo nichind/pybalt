@@ -82,7 +82,7 @@ class Remuxer:
                 if data.get("progress", "") == "end":
                     break
                 logger.debug(
-                    f'Remuxing status: {data.get("progress", "unknown")} speed: {data.get("speed", "0.00x")} {data.get("fps", "0.00")}fps frame {data.get("frame", "0")}',
+                    f"Remuxing status: {data.get('progress', 'unknown')} speed: {data.get('speed', '0.00x')} {data.get('fps', '0.00')}fps frame {data.get('frame', '0')}",
                 )
         except Exception as e:
             logger.debug(f":Remuxing {path.name} to {output} failed: {e}")

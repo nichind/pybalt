@@ -492,13 +492,14 @@ class HttpClient:
     async def _ensure_session(self, headers: Dict[str, str] = None) -> ClientSession:
         """Ensure there's an active session or create a new one."""
         session = self.session
+        session_headers = headers if headers is not None else self.headers
         if not session or session.closed:
             # Create new session with merged headers only when needed
-            session_headers = headers if headers is not None else self.headers
 
             # Create TCP connector with SSL verification settings
             connector = TCPConnector(ssl=None if self.verify_proxy else False)
             self.session = ClientSession(headers=session_headers, connector=connector)
+        self.session.headers.update(session_headers)
         return self.session
 
     async def request(
@@ -537,6 +538,7 @@ class HttpClient:
             or self.config.get_as_number("timeout", 30, section="network")
         )
         request_headers = headers or self.headers
+
         # Determine if proxy should be used based on URL (bypass for localhost)
         request_proxy = self._get_effective_proxy(full_url, proxy)
         request_verify = self.verify_proxy if verify is None else verify
@@ -584,6 +586,7 @@ class HttpClient:
                 session_kwargs.update(kwargs)
 
                 request_start_time = time()
+
                 async with session_method(full_url, **session_kwargs) as response:
                     response_time = time() - request_start_time
                     response_obj.status = response.status
@@ -725,30 +728,32 @@ class HttpClient:
             url, method="post", data=data, headers=headers, timeout=timeout, **kwargs
         )
 
-    async def _get_auth_headers_for_url(self, url: str, api_key: str = None, bearer: str = None) -> Dict[str, str]:
+    async def _get_auth_headers_for_url(
+        self, url: str, api_key: str = None, bearer: str = None
+    ) -> Dict[str, str]:
         """
         Get authorization headers for a URL based on provided credentials or user instances.
-        
+
         Args:
             url: The URL to get headers for
             api_key: Optional API key to use (takes precedence over instance API key)
             bearer: Optional bearer token to use (takes precedence over API key)
-            
+
         Returns:
             Dictionary of headers to add
         """
         headers = {}
-        
+
         # If bearer token is provided, it takes precedence
         if bearer:
             headers["Authorization"] = f"Bearer {bearer}"
             return headers
-            
+
         # If API key is provided, use it
         if api_key:
             headers["Authorization"] = f"Api-Key {api_key}"
             return headers
-            
+
         # Otherwise, check if URL matches any user instance
         user_instances = self.config.get_user_instances()
         for instance in user_instances:
@@ -756,12 +761,12 @@ class HttpClient:
             if url.startswith(instance["url"]) and instance["api_key"]:
                 headers["Authorization"] = f"Api-Key {instance['api_key']}"
                 return headers
-                
+
         # If no match found, check for default API key in config
         default_api_key = self.config.get("api_key", "", section="instances")
         if default_api_key:
             headers["Authorization"] = f"Api-Key {default_api_key}"
-            
+
         return headers
 
     async def bulk_request(
@@ -797,23 +802,41 @@ class HttpClient:
             session = await self._ensure_session()
 
             # Define helper that returns as soon as a successful response is found
-            async def safe_request(url_data: Union[str, Dict[str, str]]) -> Tuple[bool, Response]:
+            async def safe_request(
+                url_data: Union[str, Dict[str, str]],
+            ) -> Tuple[bool, Response]:
                 nonlocal found_success
                 try:
                     # Process URL and credentials
                     url = url_data if isinstance(url_data, str) else url_data.get("url")
-                    api_key = None if isinstance(url_data, str) else url_data.get("api_key")
-                    bearer = None if isinstance(url_data, str) else url_data.get("bearer")
-                    
+                    api_key = (
+                        None
+                        if isinstance(url_data, str)
+                        else url_data.get("api_key", None)
+                    )
+                    bearer = (
+                        None
+                        if isinstance(url_data, str)
+                        else url_data.get("bearer", None)
+                    )
+
                     # Check if we should bypass proxy for this URL
                     request_kwargs = kwargs.copy()
                     if "proxy" not in request_kwargs:
                         request_kwargs["proxy"] = self._get_effective_proxy(url)
-                        
+
                     # Add authorization headers if needed
-                    auth_headers = await self._get_auth_headers_for_url(url, api_key, bearer)
+                    auth_headers = await self._get_auth_headers_for_url(
+                        url, api_key, bearer
+                    )
                     if auth_headers:
-                        request_headers = request_kwargs.get("headers", {}).copy() if "headers" in request_kwargs else self.headers.copy() if self.headers else {}
+                        request_headers = (
+                            request_kwargs.get("headers", {}).copy()
+                            if "headers" in request_kwargs
+                            else self.headers.copy()
+                            if self.headers
+                            else {}
+                        )
                         request_headers.update(auth_headers)
                         request_kwargs["headers"] = request_headers
 
@@ -950,13 +973,13 @@ class HttpClient:
                 url = url_data["url"]
                 download_options = options.copy()
                 download_options["url"] = url
-                
+
                 # Add API key and bearer if present
                 if "api_key" in url_data:
                     download_options["api_key"] = url_data["api_key"]
                 if "bearer" in url_data:
                     download_options["bearer"] = url_data["bearer"]
-            
+
             file_path = await self.download_file(**download_options)
             return url, file_path, None
         except Exception as e:
@@ -1020,7 +1043,7 @@ class HttpClient:
             # Start new downloads if under the concurrent limit and URLs are available
             while len(active_tasks) < max_concurrent and url_queue:
                 url_data = url_queue.popleft()
-                
+
                 # Set up download options
                 download_options = options.copy()
                 download_options["folder_path"] = folder_path
@@ -1087,7 +1110,7 @@ class HttpClient:
     ) -> asyncio.Task:
         """
         Start a bulk download operation in a detached task that runs in the background.
-        
+
         Args:
             urls: List of URLs to download (either string or dict with "url", optional "api_key" and "bearer")
             folder_path: Download destination folder
@@ -1117,10 +1140,10 @@ class HttpClient:
         # Create a task for the bulk download
         bulk_task = asyncio.create_task(
             self.bulk_download(
-                urls=urls, 
-                folder_path=folder_path, 
-                max_concurrent=max_concurrent, 
-                **options
+                urls=urls,
+                folder_path=folder_path,
+                max_concurrent=max_concurrent,
+                **options,
             )
         )
 
@@ -1145,13 +1168,19 @@ class HttpClient:
         # Get API key and bearer token if provided
         api_key = options.get("api_key")
         bearer = options.get("bearer")
-        
+
         # Get authorization headers if needed
         auth_headers = await self._get_auth_headers_for_url(url, api_key, bearer)
-        
+
         # Merge authorization headers with existing headers
         if auth_headers:
-            request_headers = options.get("headers", {}).copy() if "headers" in options else self.headers.copy() if self.headers else {}
+            request_headers = (
+                options.get("headers", {}).copy()
+                if "headers" in options
+                else self.headers.copy()
+                if self.headers
+                else {}
+            )
             request_headers.update(auth_headers)
             options["headers"] = request_headers
 
@@ -1299,7 +1328,9 @@ class HttpClient:
                             "download_buffer_size", 1024 * 1024, "network"
                         )
                         if self.debug:
-                            logger.debug(f"Using buffer size: {buffer_size/1024:.0f}KB")
+                            logger.debug(
+                                f"Using buffer size: {buffer_size / 1024:.0f}KB"
+                            )
 
                         async with aopen(file_path, "wb") as f:
                             if self.debug:
@@ -1354,9 +1385,9 @@ class HttpClient:
                                                 else 0
                                             )
                                             logger.debug(
-                                                f"Downloaded: {downloaded_size/1024/1024:.2f}MB / "
-                                                f"{total_size/1024/1024:.2f}MB ({percent:.1f}%) at "
-                                                f"{download_speed/1024/1024:.2f}MB/s, ETA: {eta:.0f}s"
+                                                f"Downloaded: {downloaded_size / 1024 / 1024:.2f}MB / "
+                                                f"{total_size / 1024 / 1024:.2f}MB ({percent:.1f}%) at "
+                                                f"{download_speed / 1024 / 1024:.2f}MB/s, ETA: {eta:.0f}s"
                                             )
 
                                         # Create progress data once (avoid repeated dict creation)
@@ -1407,7 +1438,7 @@ class HttpClient:
                                 except asyncio.TimeoutError:
                                     if self.debug:
                                         logger.debug(
-                                            f"Timeout while reading chunk after downloading {downloaded_size/1024/1024:.2f}MB"
+                                            f"Timeout while reading chunk after downloading {downloaded_size / 1024 / 1024:.2f}MB"
                                         )
 
                                     # If we've downloaded a significant portion, try to continue
@@ -1427,7 +1458,7 @@ class HttpClient:
                                         break  # Break out of chunk reading loop to retry full download
                                     else:
                                         raise Exception(
-                                            f"Download timed out after multiple retries ({downloaded_size/1024/1024:.2f}MB downloaded)"
+                                            f"Download timed out after multiple retries ({downloaded_size / 1024 / 1024:.2f}MB downloaded)"
                                         )
 
                     # If we reached here, the download was successful
@@ -1497,12 +1528,12 @@ class HttpClient:
                     if retry_attempt < retry_count:
                         if self.debug:
                             logger.debug(
-                                f"Download error (attempt {retry_attempt+1}/{retry_count+1}): {str(e)}"
+                                f"Download error (attempt {retry_attempt + 1}/{retry_count + 1}): {str(e)}"
                             )
                     else:
                         # Last attempt failed, re-raise
                         logger.error(
-                            f"Download failed after {retry_count+1} attempts: {str(e)}"
+                            f"Download failed after {retry_count + 1} attempts: {str(e)}"
                         )
                         raise
 
