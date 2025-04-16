@@ -2,7 +2,18 @@ from .config import Config
 from .client import HttpClient
 from .local import LocalInstance
 from .remux import remux
-from typing import TypedDict, Optional, List, Dict, Union, Literal, Unpack
+from typing import (
+    TypedDict,
+    Optional,
+    List,
+    Dict,
+    Union,
+    Literal,
+    Unpack,
+    AsyncGenerator,
+    Tuple,
+)
+from pathlib import Path
 import logging
 
 
@@ -289,10 +300,17 @@ class InstanceManager:
 
     @property
     def all_instances(self) -> List[Instance]:
+        """_summary_
+
+        Returns:
+            List[Instance]: _description_
+        """
         return (
-            [self.local_instance]
-            if self.local_instance.get_instance_status().get("running", False)
-            else []
+            (
+                [self.local_instance]
+                if self.local_instance.get_instance_status().get("running", False)
+                else []
+            )
             + self.user_instances
             + self.fetched_instances
             + [self.fallback_instance]
@@ -328,8 +346,7 @@ class InstanceManager:
         # Parse the raw instances
         instances_data = await raw_instances.json()
 
-        if self.debug:
-            logger.debug(f"Received {len(instances_data)} raw instances")
+        logger.debug(f"Received {len(instances_data)} raw instances")
 
         # Get user-defined instances with API keys
         user_instances = self.config.get_user_instances()
@@ -397,7 +414,7 @@ class InstanceManager:
 
     async def get_instances(self) -> List[Instance]:
         """
-        Get a list of ALL AVALIABLE Cobalt instances INCLUDING local, user_instances from the config, fetched instances from the list api and the fallback one.
+        Get a list of ALL available Cobalt instances including local, user_instances from the config, fetched instances from the list api and the fallback one.
 
         Returns:
             List of Instance objects
@@ -425,8 +442,56 @@ class InstanceManager:
             client=self.client,
             debug=self.debug,
         )
-
+        logger.debug(str(self.all_instances))
         return self.all_instances
+
+    async def first_tunnel_generator(
+        self,
+        urls: List[str],
+        only_first: bool = False,
+        close: bool = True,
+        **params: Unpack[CobaltRequestParams],
+    ) -> AsyncGenerator[
+        Union[
+            CobaltTunnelResponse,
+            CobaltRedirectResponse,
+            CobaltPickerResponse,
+            CobaltErrorResponse,
+        ],
+        None,
+    ]:
+        instances = await self.get_instances()
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        for url in urls:
+            try:
+                response = await self.client.bulk_post(
+                    [
+                        {"url": instance.api_url, "api_key": instance.api_key}
+                        for instance in instances
+                    ],
+                    json={
+                        "url": url,
+                        **params,
+                    },
+                    headers=headers,
+                    close=close,
+                )
+                data = await response.json()
+                if data.get("status", "") == "tunnel":
+                    yield CobaltTunnelResponse(**data)
+                elif data.get("status", "") == "redirect":
+                    yield CobaltRedirectResponse(**data)
+                elif data.get("status", "") == "picker":
+                    yield CobaltPickerResponse(**data)
+                elif data.get("status", "") == "error":
+                    yield CobaltErrorResponse(**data)
+                if only_first:
+                    break
+            except Exception as e:
+                logger.debug(f"Error processing URL {url}: {e}")
 
     async def first_tunnel(
         self, url: str, **params: Unpack[CobaltRequestParams]
@@ -446,20 +511,96 @@ class InstanceManager:
         Returns:
             Response from the first successful instance
         """
-        instances = await self.get_instances()
-        print(f"Instances: {instances}")
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        }
-        return await self.client.bulk_post(
-            [
-                {"url": instance.api_url, "api_key": instance.api_key}
-                for instance in instances
-            ],
-            json={
-                "url": url,
-                **params,
-            },
-            headers=headers,
-        )
+        generator = self.first_tunnel_generator(urls=[url], only_first=True, **params)
+        async for response in generator:
+            return response
+
+    async def download_generator(
+        self,
+        url: str = None,
+        urls: List[str] = None,
+        **params: Unpack[CobaltRequestParams],
+    ) -> AsyncGenerator[Tuple[str, Optional[Path], Optional[Exception]], None]:
+        """
+        Download multiple files from Cobalt, yielding results as they complete.
+
+        Args:
+            url: Single URL to download (alternative to urls)
+            urls: Multiple URLs to download
+            **params: Parameters for the Cobalt API request
+
+        Yields:
+            Tuples of (url, file_path, exception) where:
+            - url is the original URL requested
+            - file_path is the Path to the downloaded file (None if failed)
+            - exception is the exception that occurred (None if successful)
+        """
+        # Check if bulk download is allowed in config
+        urls = urls or [url]
+        if not urls:
+            raise ValueError("Either url or urls must be provided")
+
+        if (
+            urls
+            and len(urls) > 1
+            and not self.config.get("allow_bulk_download", True, section="misc")
+        ):
+            raise ValueError("Bulk downloads are disabled in configuration")
+
+        complete_urls = []
+        for url in urls:
+            complete_urls += self.client.detect_playlist(url=url)
+
+        for url in complete_urls:
+            try:
+                response = await self.first_tunnel(url, close=False, **params)
+                if response.get("status", "") == "error":
+                    error = ValueError(f"Error: {response['error']['code']}")
+                    yield url, None, error
+                    continue
+
+                if (
+                    response.get("status", "") == "tunnel"
+                    or response.get("status", "") == "redirect"
+                ):
+                    download_url = response.get("url")
+                    filename = response.get("filename")
+                    file_path = await self.client.download_file(
+                        url=download_url,
+                        filename=filename,
+                        timeout=self.config.get("download_timeout", 60),
+                        progressive_timeout=True,
+                    )
+                    yield url, file_path, None
+                else:
+                    # Handle picker responses or other status types
+                    error = ValueError(
+                        f"Unsupported response status: {response.get('status')}"
+                    )
+                    yield url, None, error
+            except Exception as e:
+                logger.debug(f"Error processing URL {url}: {e}")
+                yield url, None, e
+
+    async def download(
+        self,
+        url: str = None,
+        urls: List[str] = None,
+        **params: Unpack[CobaltRequestParams],
+    ) -> List[Tuple[str, Optional[Path], Optional[Exception]]]:
+        """
+        Download one or more files from Cobalt and return the results.
+
+        Args:
+            url: Single URL to download (alternative to urls)
+            urls: Multiple URLs to download
+            **params: Parameters for the Cobalt API request
+
+        Returns:
+            List of tuples containing (url, file_path, exception) for each download.
+            If exception is None, the download was successful.
+        """
+        results = []
+        async for result in self.download_generator(url=url, urls=urls, **params):
+            results.append(result)
+        return results

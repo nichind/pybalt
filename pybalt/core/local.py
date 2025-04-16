@@ -35,6 +35,18 @@ class LocalInstance:
         self.instance_dir = self._get_instance_dir()
         self.docker_compose_path = self.instance_dir / "docker-compose.yml"
         self.cookies_path = self.instance_dir / "cookies.json"
+        self.api_key = None
+
+    @property
+    def api_url(self) -> str:
+        """
+        Get the API URL for the local instance.
+
+        Returns:
+            The API URL as a string.
+        """
+        port = self.config.get_as_number("local_instance_port", 8009, "local")
+        return f"http://localhost:{port}/"
 
     def _get_instance_dir(self) -> Path:
         """Get the directory for the local instance files."""
@@ -180,7 +192,7 @@ To fix this issue:
         """
         Generate a docker-compose.yml file based on the current configuration.
         """
-        port = self.config.get_as_number("local_instance_port", 9001, "local")
+        port = self.config.get_as_number("local_instance_port", 9000, "local")
         # Keep using localhost for API_URL
         api_url = f"http://localhost:{port}/"
 
@@ -214,10 +226,10 @@ To fix this issue:
                     "read_only": True,
                     "restart": "unless-stopped",
                     "container_name": "cobalt-api",
-                    "ports": [f"{port}:{9000}/tcp"],
+                    "ports": [f"{port}:{port}/tcp"],
                     "environment": {
                         "API_URL": api_url,
-                        "API_PORT": "9000",
+                        "API_PORT": port,
                     },
                     "labels": ["com.centurylinklabs.watchtower.scope=cobalt"],
                 },
@@ -511,7 +523,7 @@ Please install Docker and Docker Compose before continuing:
 
         # Collect configuration
         port = click.prompt(
-            "Enter port number for the instance", default=9001, type=int
+            "Enter port number for the instance", default=9000, type=int
         )
         api_auth = click.confirm("Enable API key authentication?", default=False)
         api_key = ""
@@ -634,7 +646,7 @@ def start():
     try:
         if local_instance.start_instance():
             port = local_instance.config.get_as_number(
-                "local_instance_port", 9001, "local"
+                "local_instance_port", 9000, "local"
             )
             click.echo(f"Local Cobalt instance started on http://localhost:{port}/")
     except LocalInstanceError as e:
@@ -659,7 +671,7 @@ def restart():
     try:
         if local_instance.restart_instance():
             port = local_instance.config.get_as_number(
-                "local_instance_port", 9001, "local"
+                "local_instance_port", 9000, "local"
             )
             click.echo(f"Local Cobalt instance restarted on http://localhost:{port}/")
     except LocalInstanceError as e:
@@ -673,7 +685,7 @@ def status():
     status_info = local_instance.get_instance_status()
 
     if status_info.get("running"):
-        port = local_instance.config.get_as_number("local_instance_port", 9001, "local")
+        port = local_instance.config.get_as_number("local_instance_port", 9000, "local")
         click.echo(f"Local Cobalt instance is running on http://localhost:{port}/")
     else:
         click.echo("Local Cobalt instance is not running.")
@@ -749,7 +761,7 @@ def config(
         # Show current configuration
         click.echo("Current configuration:")
         click.echo(
-            f"Port: {config.get_as_number('local_instance_port', 9001, 'local')}"
+            f"Port: {config.get_as_number('local_instance_port', 9000, 'local')}"
         )
         click.echo(
             f"Auth required: {config.get('api_auth_required', '0', 'local') == '1'}"

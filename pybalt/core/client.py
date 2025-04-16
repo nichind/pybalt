@@ -11,6 +11,7 @@ from typing import (
     Unpack,
     List,
     Tuple,
+    AsyncGenerator,
 )
 from asyncio import sleep, iscoroutinefunction
 from time import time
@@ -769,13 +770,23 @@ class HttpClient:
 
         return headers
 
-    async def bulk_request(
+    async def bulk_request_generator(
         self,
         urls: List[Union[str, Dict[str, str]]],
         method: Literal["get", "post"] = "get",
+        close: bool = True,
         **kwargs,
-    ) -> Response:
-        """Make concurrent requests to multiple URLs and return the first successful response."""
+    ) -> AsyncGenerator[Response, None]:
+        """Make concurrent requests to multiple URLs and yield responses as they come in.
+
+        Args:
+            urls: List of URLs to request (either string or dict with "url", optional "api_key" and "bearer")
+            method: HTTP method to use ("get" or "post")
+            **kwargs: Additional arguments for the request
+
+        Yields:
+            Response objects as they become available
+        """
         import asyncio
 
         # Check if bulk requests are allowed in config
@@ -783,19 +794,17 @@ class HttpClient:
             raise Exception("Bulk requests are disabled in the configuration")
 
         if not urls:
-            raise ValueError("No URLs provided for bulk request")
+            return
 
         if self.debug:
             logger.debug(
                 f"Performing bulk {method.upper()} request to {len(urls)} URLs"
             )
 
-        # Flag to track if we've found a successful response
-        found_success = False
-        # Store all responses for error handling
-        all_responses = []
         # Store tasks to ensure proper cancellation
         tasks = []
+
+        first_only = kwargs.pop("first_successful_only", False)
 
         try:
             # Ensure session exists but don't close it in the request method
@@ -805,7 +814,6 @@ class HttpClient:
             async def safe_request(
                 url_data: Union[str, Dict[str, str]],
             ) -> Tuple[bool, Response]:
-                nonlocal found_success
                 try:
                     # Process URL and credentials
                     url = url_data if isinstance(url_data, str) else url_data.get("url")
@@ -851,7 +859,6 @@ class HttpClient:
                             logger.debug(
                                 f"Request to {url} succeeded with status {response.status}"
                             )
-                        found_success = True
                         return True, response
                     else:
                         if self.debug:
@@ -871,27 +878,18 @@ class HttpClient:
             # Use as_completed to get results as they finish
             for future in asyncio.as_completed(tasks):
                 success, response = await future
-                all_responses.append((success, response))
+                # Yield each response as it becomes available
+                yield response
 
-                # Return immediately on the first successful response
-                if success:
-                    if self.debug:
-                        logger.debug(
-                            "Found successful response - returning immediately"
-                        )
-                    return response
-
-            # If we get here, no successful responses were found
-            if self.debug:
-                logger.debug(f"All {len(urls)} URLs failed")
-            # Return the first error response
-            return all_responses[0][1]
+                # No need to continue if we found a successful response and just want the first one
+                if success and first_only:
+                    break
 
         except Exception as e:
             if self.debug:
                 logger.debug(f"Bulk request error: {str(e)}")
-            # Return a generic error response
-            return Response(status=0, text=f"Bulk request error: {str(e)}")
+            # Yield a generic error response
+            yield Response(status=0, text=f"Bulk request error: {str(e)}")
 
         finally:
             # Cancel any remaining tasks that might still be running
@@ -900,11 +898,43 @@ class HttpClient:
                     task.cancel()
 
             # Don't close the session here if close=False was specified
-            if kwargs.get("close", True):
+            if close:
                 if session and not session.closed:
                     if self.debug:
                         logger.debug("Closing session after bulk request")
                     await session.close()
+
+    async def bulk_request(
+        self,
+        urls: List[Union[str, Dict[str, str]]],
+        method: Literal["get", "post"] = "get",
+        **kwargs,
+    ) -> Response:
+        """Make concurrent requests to multiple URLs and return the first successful response.
+
+        Args:
+            urls: List of URLs to request (either string or dict with "url", optional "api_key" and "bearer")
+            method: HTTP method to use ("get" or "post")
+            **kwargs: Additional arguments for the request
+
+        Returns:
+            The first successful Response object or an error Response if all requests fail
+        """
+        # Set flag to get only the first successful response
+        kwargs["first_successful_only"] = True
+
+        # Get the generator
+        generator = self.bulk_request_generator(urls, method, **kwargs)
+
+        # Return the first response from the generator
+        async for response in generator:
+            if response.status < 400:
+                return response
+            # Store the first error response to return if all fail
+            first_error = response
+
+        # If we got here, no successful responses were found, return the first error
+        return first_error
 
     async def bulk_get(
         self,
@@ -987,13 +1017,13 @@ class HttpClient:
                 logger.debug(f"Download failed for {url}: {str(e)}")
             return url, None, e
 
-    async def bulk_download(
+    async def bulk_download_generator(
         self,
         urls: List[Union[str, Dict[str, str]]],
         folder_path: str = None,
         max_concurrent: int = None,
         **options,
-    ) -> List[Tuple[str, Path, Exception]]:
+    ) -> AsyncGenerator[Tuple[str, Path, Exception], None]:
         """
         Download multiple files concurrently with a limit on maximum parallel downloads.
 
@@ -1003,8 +1033,8 @@ class HttpClient:
             max_concurrent: Maximum number of concurrent downloads
             **options: Additional options to pass to download_file
 
-        Returns:
-            List of tuples containing (url, file_path, exception) for each download
+        Yields:
+            Tuples containing (url, file_path, exception) for each download
             If exception is None, the download was successful
         """
         import asyncio
@@ -1015,7 +1045,7 @@ class HttpClient:
             raise Exception("Bulk downloads are disabled in configuration")
 
         if not urls:
-            return []
+            return
 
         # Use config for default folder path if not specified
         if not folder_path:
@@ -1086,6 +1116,7 @@ class HttpClient:
                             if self.debug:
                                 status = "failed" if error else "completed"
                                 logger.debug(f"Download of {url} {status}")
+                            yield url, path, error
                         except Exception as e:
                             # This should not happen as exceptions are handled in _download_and_track
                             if self.debug:
@@ -1093,12 +1124,16 @@ class HttpClient:
                                     f"Unexpected error in bulk download: {str(e)}"
                                 )
 
-        if self.debug:
-            successful = len([r for r in results if r[2] is None])
-            logger.debug(
-                f"Bulk download completed: {successful}/{len(results)} successful"
-            )
-
+    async def bulk_download(
+        self,
+        urls: List[Union[str, Dict[str, str]]],
+        folder_path: str = None,
+        max_concurrent: int = None,
+        **options,
+    ) -> List[Tuple[str, Path, Exception]]:
+        results = await self.bulk_download_generator(
+            urls, folder_path, max_concurrent, **options
+        )
         return results
 
     async def bulk_detached_download(
@@ -1617,6 +1652,35 @@ class HttpClient:
             logger.debug(f"Started detached download task for: {options.get('url')}")
 
         return download_task
+
+    def detect_playlist(self, url: str) -> List[str]:
+        """
+        Checks wherever a link is a playlist and if so, returns a url list of an playlist members
+
+        Returns:
+            List[str] or None: List of URLs if a playlist is detected, otherwise list with the original URL
+        """
+        # YouTube playlist
+        # Define a regex pattern to match all YouTube URL variations
+        youtube_pattern = (
+            r"(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)(?:\/[^\s]*)?"
+        )
+
+        # Check if the URL is a YouTube link
+        if re.match(youtube_pattern, url):
+            # Check if it's a playlist
+            playlist_id_match = re.findall(r"[&?]list=([^&]+)", url)
+            if playlist_id_match:
+                try:
+                    from pytube import Playlist
+
+                    playlist = Playlist(url)
+                    # Return list of video URLs in the playlist
+                    return list(playlist.video_urls)
+                except Exception as e:
+                    logger.debug(f"Failed to extract playlist: {str(e)}")
+
+        return [url]
 
     async def __aenter__(self):
         """Async context manager entry point."""

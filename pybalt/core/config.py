@@ -65,11 +65,12 @@ class Config:
             "default_downloads_dir": str(Path.home() / "Downloads"),
         },
         "local": {
-            "local_instance_port": "9001",
+            "local_instance_port": "9000",
             "use_pc_proxy": "True",
             "proxy_url": "",
         },
         "ffmpeg": {"remux_args": "-hwaccel opencl", "keep_original": "True"},
+        "api": {"port": "8009", "update_period": "120"},
         "misc": {
             "ignore_updates": "False",
             "last_update_check": "0",
@@ -91,6 +92,7 @@ class Config:
         "local_instance_port",
         "max_concurrent_downloads",
         "download_buffer_size",
+        "update_period",
     }
 
     def __init__(self):

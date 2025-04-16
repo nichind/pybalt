@@ -8,15 +8,14 @@ import uvicorn
 app = FastAPI()
 manager = core.wrapper.InstanceManager()
 config = core.config.Config()
-stored_instances = []
 
 
 @app.get("/")
 async def root(request: Request):
     return {
-        "message": "привет! welcome to the https://github.com/nichind/pybalt api, you can use the api just like you would use any normal cobalt instance, the response would be always from the fastest instance to answer the request",
+        "message": "Welcome to the https://github.com/nichind/pybalt api, you can use it just like you would use any normal cobalt instance, the response would be always from the fastest instance to answer to the request",
         "version": VERSION,
-        "instance_count": len(stored_instances),
+        "instance_count": len(manager.all_instances),
     }
 
 
@@ -38,14 +37,13 @@ async def startup_event():
 
 async def update_instances():
     """Periodically update the stored_instances list with current instances."""
-    global stored_instances
     while True:
         try:
-            stored_instances = await manager.get_instances()
+            await manager.get_instances()
         except Exception as e:
             print(f"Error updating instances: {e}")
 
-        # Get update period from config, default to 60 seconds if not specified
+        # Get instance list update period from config
         update_period = config.get_as_number("update_period", 60, "api")
 
         await sleep(update_period)
@@ -55,7 +53,7 @@ def run_api(port=None, **kwargs):
     """Run the FastAPI application on the specified port or from config."""
     # Use provided port, or get it from kwargs, or from config, or default to 8000
     if port is None:
-        port = config.get_as_number("api_port", 8009, "api")
+        port = config.get_as_number("port", 8009, "api")
 
     # Run the API server
     uvicorn.run(app, host="0.0.0.0", port=port)
