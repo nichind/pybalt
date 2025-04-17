@@ -24,9 +24,7 @@ class CobaltRequestParams(TypedDict, total=False):
     """Type definition for Cobalt API request parameters."""
 
     url: str
-    videoQuality: Literal[
-        "144", "240", "360", "480", "720", "1080", "1440", "2160", "4320", "max"
-    ]
+    videoQuality: Literal["144", "240", "360", "480", "720", "1080", "1440", "2160", "4320", "max"]
     audioFormat: Literal["best", "mp3", "ogg", "wav", "opus"]
     audioBitrate: Literal["320", "256", "128", "96", "64", "8"]
     filenameStyle: Literal["classic", "pretty", "basic", "nerdy"]
@@ -146,9 +144,7 @@ class Instance:
             if not logger.handlers:
                 console_handler = logging.StreamHandler()
                 console_handler.setLevel(logging.DEBUG)
-                formatter = logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                )
+                formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
                 console_handler.setFormatter(formatter)
                 logger.addHandler(console_handler)
 
@@ -214,9 +210,7 @@ class Instance:
         service_status = self.services.get(service)
         if service_status is True:
             return True
-        elif isinstance(service_status, str) and not service_status.startswith(
-            ("error.", "i couldn't", "it seems")
-        ):
+        elif isinstance(service_status, str) and not service_status.startswith(("error.", "i couldn't", "it seems")):
             return True
         return False
 
@@ -270,9 +264,7 @@ class InstanceManager:
             if not logger.handlers:
                 console_handler = logging.StreamHandler()
                 console_handler.setLevel(logging.DEBUG)
-                formatter = logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                )
+                formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
                 console_handler.setFormatter(formatter)
                 logger.addHandler(console_handler)
         self.client = client
@@ -289,9 +281,7 @@ class InstanceManager:
         ]
         self.fetched_instances = []
         self.fallback_instance = Instance(
-            url=self.config.get(
-                "fallback_instance", "https://dwnld.nichind.dev", "instances"
-            ),
+            url=self.config.get("fallback_instance", "https://dwnld.nichind.dev", "instances"),
             api_key=self.config.get("fallback_instance_api_key", None, "instances"),
             config=self.config,
             client=self.client,
@@ -306,19 +296,13 @@ class InstanceManager:
             List[Instance]: _description_
         """
         return (
-            (
-                [self.local_instance]
-                if self.local_instance.get_instance_status().get("running", False)
-                else []
-            )
+            ([self.local_instance] if self.local_instance.get_instance_status().get("running", False) else [])
             + self.user_instances
             + self.fetched_instances
             + [self.fallback_instance]
         )
 
-    async def fetch_instances(
-        self, min_version: str = None, min_score: int = 0, filter_online: bool = True
-    ) -> List[Instance]:
+    async def fetch_instances(self, min_version: str = None, min_score: int = 0, filter_online: bool = True) -> List[Instance]:
         """
         Get processed Cobalt instances from the public instance list api.
 
@@ -350,9 +334,7 @@ class InstanceManager:
 
         # Get user-defined instances with API keys
         user_instances = self.config.get_user_instances()
-        user_instances_dict = {
-            instance["url"]: instance["api_key"] for instance in user_instances
-        }
+        user_instances_dict = {instance["url"]: instance["api_key"] for instance in user_instances}
 
         # Process instances
         processed_instances = []
@@ -364,9 +346,7 @@ class InstanceManager:
                 continue
 
             # Create full API URL
-            api_url = (
-                f"{instance_info.get('protocol', 'https')}://{instance_info['api']}"
-            )
+            api_url = f"{instance_info.get('protocol', 'https')}://{instance_info['api']}"
 
             # Skip duplicates
             if api_url in seen_urls:
@@ -382,11 +362,7 @@ class InstanceManager:
                 continue
 
             # Skip instances with version lower than minimum
-            if (
-                min_version
-                and instance_info.get("version")
-                and instance_info.get("version") < min_version
-            ):
+            if min_version and instance_info.get("version") and instance_info.get("version") < min_version:
                 continue
 
             # Find matching API key from user instances
@@ -434,9 +410,7 @@ class InstanceManager:
             for user_instance in self.config.get_user_instances()
         ]
         self.fallback_instance = Instance(
-            url=self.config.get(
-                "fallback_instance", "https://dwnld.nichind.dev", "instances"
-            ),
+            url=self.config.get("fallback_instance", "https://dwnld.nichind.dev", "instances"),
             api_key=self.config.get("fallback_instance_api_key", None, "instances"),
             config=self.config,
             client=self.client,
@@ -468,10 +442,7 @@ class InstanceManager:
         for url in urls:
             try:
                 response = await self.client.bulk_post(
-                    [
-                        {"url": instance.api_url, "api_key": instance.api_key}
-                        for instance in instances
-                    ],
+                    [{"url": instance.api_url, "api_key": instance.api_key} for instance in instances],
                     json={
                         "url": url,
                         **params,
@@ -540,11 +511,7 @@ class InstanceManager:
         if not urls:
             raise ValueError("Either url or urls must be provided")
 
-        if (
-            urls
-            and len(urls) > 1
-            and not self.config.get("allow_bulk_download", True, section="misc")
-        ):
+        if urls and len(urls) > 1 and not self.config.get("allow_bulk_download", True, section="misc"):
             raise ValueError("Bulk downloads are disabled in configuration")
 
         complete_urls = []
@@ -559,10 +526,7 @@ class InstanceManager:
                     yield url, None, error
                     continue
 
-                if (
-                    response.get("status", "") == "tunnel"
-                    or response.get("status", "") == "redirect"
-                ):
+                if response.get("status", "") == "tunnel" or response.get("status", "") == "redirect":
                     download_url = response.get("url")
                     filename = response.get("filename")
                     file_path = await self.client.download_file(
@@ -574,9 +538,7 @@ class InstanceManager:
                     yield url, file_path, None
                 else:
                     # Handle picker responses or other status types
-                    error = ValueError(
-                        f"Unsupported response status: {response.get('status')}"
-                    )
+                    error = ValueError(f"Unsupported response status: {response.get('status')}")
                     yield url, None, error
             except Exception as e:
                 logger.debug(f"Error processing URL {url}: {e}")

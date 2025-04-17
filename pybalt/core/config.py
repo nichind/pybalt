@@ -18,9 +18,7 @@ try:
     HAS_PROMPT_TOOLKIT = True
 except ImportError:
     HAS_PROMPT_TOOLKIT = False
-    print(
-        "Warning: prompt_toolkit is not installed. CLI config editing will not be available."
-    )
+    print("Warning: prompt_toolkit is not installed. CLI config editing will not be available.")
     print("Install with: pip install prompt_toolkit")
 
 
@@ -181,9 +179,7 @@ class Config:
         """Find which section a key belongs to if it's unique across sections."""
         return self.key_to_section.get(option)
 
-    def get(
-        self, option: str, fallback: Any = None, section: Optional[str] = None
-    ) -> Union[str, float, int, bool]:
+    def get(self, option: str, fallback: Any = None, section: Optional[str] = None) -> Union[str, float, int, bool]:
         """
         Get a configuration value.
 
@@ -231,9 +227,7 @@ class Config:
                         numeric_value = float(value)
                 return numeric_value
             except (ValueError, TypeError):
-                print(
-                    f"Warning: Failed to convert {option} value '{value}' to number. Using as string."
-                )
+                print(f"Warning: Failed to convert {option} value '{value}' to number. Using as string.")
                 return value
 
         # Convert string boolean values to actual boolean types
@@ -242,9 +236,7 @@ class Config:
 
         return value
 
-    def get_as_number(
-        self, option: str, fallback: Any = None, section: Optional[str] = None
-    ) -> Union[int, float]:
+    def get_as_number(self, option: str, fallback: Any = None, section: Optional[str] = None) -> Union[int, float]:
         """
         Get a configuration value as a number (int or float).
 
@@ -268,9 +260,7 @@ class Config:
         except (ValueError, TypeError):
             if isinstance(fallback, (int, float)):
                 return fallback
-            print(
-                f"Warning: Failed to convert {option} value '{value}' to number. Using 0."
-            )
+            print(f"Warning: Failed to convert {option} value '{value}' to number. Using 0.")
             return 0
 
     def set(self, option: str, value: str, section: Optional[str] = None) -> None:
@@ -452,9 +442,7 @@ class Config:
                 api_key = self.config.get("user_instances", api_key_key, fallback="")
 
                 if instance_url:
-                    instances.append(
-                        {"number": num, "url": instance_url, "api_key": api_key}
-                    )
+                    instances.append({"number": num, "url": instance_url, "api_key": api_key})
 
         return instances
 
@@ -489,9 +477,7 @@ class Config:
         self.save_config()
         return next_num
 
-    def update_user_instance(
-        self, num: int, url: str = None, api_key: str = None
-    ) -> bool:
+    def update_user_instance(self, num: int, url: str = None, api_key: str = None) -> bool:
         """
         Update an existing user instance's URL or API key.
 
@@ -592,9 +578,7 @@ def open_in_explorer(path):
         if system == "Windows":
             # On Windows, use the 'start' command to open Explorer
             # The /select flag highlights the file in Explorer
-            subprocess.run(
-                ["explorer", "/select,", os.path.normpath(path_str)], check=False
-            )
+            subprocess.run(["explorer", "/select,", os.path.normpath(path_str)], check=False)
         elif system == "Darwin":  # macOS
             # On macOS, use 'open -R' to reveal the file in Finder
             subprocess.run(["open", "-R", path_str], check=False)
@@ -633,9 +617,7 @@ def create_cli_app(config: Config):
         config: The Config instance to edit.
     """
     if not HAS_PROMPT_TOOLKIT:
-        print(
-            "Error: prompt_toolkit is required for the CLI. Install with pip install prompt_toolkit"
-        )
+        print("Error: prompt_toolkit is required for the CLI. Install with pip install prompt_toolkit")
         return
 
     # Ensure all default keys exist
@@ -765,17 +747,13 @@ def create_cli_app(config: Config):
             else:
                 # Save and exit edit mode
                 if state.current_option and state.current_section:
-                    config.set(
-                        state.current_option, state.edit_value, state.current_section
-                    )
+                    config.set(state.current_option, state.edit_value, state.current_section)
                     state.message = f"Updated {state.current_section}.{state.current_option} to '{state.edit_value}'"
             state.edit_mode = False
         else:
             # Check if selected option has a boolean value
             if state.current_option and state.current_section:
-                current_value = config.get(
-                    state.current_option, section=state.current_section
-                )
+                current_value = config.get(state.current_option, section=state.current_section)
 
                 # If it's a boolean value, toggle it
                 if is_boolean_value(current_value):
@@ -787,9 +765,7 @@ def create_cli_app(config: Config):
                 # Otherwise enter edit mode as usual
                 else:
                     state.edit_mode = True
-                    value = config.get(
-                        state.current_option, fallback="", section=state.current_section
-                    )
+                    value = config.get(state.current_option, fallback="", section=state.current_section)
                     # Convert any value back to string for editing
                     state.edit_value = str(value)
 
@@ -816,9 +792,7 @@ def create_cli_app(config: Config):
     @kb.add("c-d")
     def _(event):
         if not state.edit_mode and state.current_option and state.current_section:
-            if config.reset_to_default(
-                state.current_option, section=state.current_section
-            ):
+            if config.reset_to_default(state.current_option, section=state.current_section):
                 state.message = f"Reset {state.current_section}.{state.current_option} to default value"
             else:
                 state.message = f"No default value for {state.current_section}.{state.current_option}"
@@ -830,9 +804,7 @@ def create_cli_app(config: Config):
         if not state.edit_mode:
             # Instead of immediately resetting, ask for confirmation
             state.confirm_reset = True
-            state.message = (
-                "Reset ALL settings to defaults? Press Y to confirm, N to cancel"
-            )
+            state.message = "Reset ALL settings to defaults? Press Y to confirm, N to cancel"
 
     @kb.add("f2")
     def _(event):
@@ -848,9 +820,7 @@ def create_cli_app(config: Config):
             state.instance_mode = True
             state.instance_action = ""
             state.instances = config.get_user_instances()
-            state.message = (
-                "Instance Management: (A)dd, (E)dit, (R)emove, or ESC to cancel"
-            )
+            state.message = "Instance Management: (A)dd, (E)dit, (R)emove, or ESC to cancel"
 
     # Handle all printable characters for edit mode
     @kb.add_binding(" ")
@@ -915,9 +885,7 @@ def create_cli_app(config: Config):
                         state.message = "Enter API key (or press Enter to skip)"
                     elif state.instance_edit_step == 1:
                         # Add the instance
-                        num = config.add_user_instance(
-                            state.instance_url, state.edit_value
-                        )
+                        num = config.add_user_instance(state.instance_url, state.edit_value)
                         state.message = f"Added instance #{num}: {state.instance_url}"
                         state.edit_mode = False
                         state.instance_mode = False
@@ -930,22 +898,16 @@ def create_cli_app(config: Config):
                     try:
                         num = int(state.edit_value)
                         if 1 <= num <= len(state.instances):
-                            instance = next(
-                                (i for i in state.instances if i["number"] == num), None
-                            )
+                            instance = next((i for i in state.instances if i["number"] == num), None)
                             if not instance:
                                 instance = state.instances[num - 1]
 
                             state.edit_instance_num = instance["number"]
                             state.instance_action = "edit_url"
                             state.edit_value = instance["url"]
-                            state.message = (
-                                f"Edit instance URL (current: {instance['url']})"
-                            )
+                            state.message = f"Edit instance URL (current: {instance['url']})"
                         else:
-                            state.message = (
-                                f"Invalid number. Enter 1-{len(state.instances)}"
-                            )
+                            state.message = f"Invalid number. Enter 1-{len(state.instances)}"
                     except ValueError:
                         state.message = "Please enter a valid number"
 
@@ -954,11 +916,7 @@ def create_cli_app(config: Config):
                     state.instance_url = state.edit_value
                     state.instance_action = "edit_api_key"
                     instance = next(
-                        (
-                            i
-                            for i in state.instances
-                            if i["number"] == state.edit_instance_num
-                        ),
+                        (i for i in state.instances if i["number"] == state.edit_instance_num),
                         None,
                     )
                     state.edit_value = instance["api_key"] if instance else ""
@@ -966,15 +924,11 @@ def create_cli_app(config: Config):
 
                 elif state.instance_action == "edit_api_key":
                     # Update the instance
-                    success = config.update_user_instance(
-                        state.edit_instance_num, state.instance_url, state.edit_value
-                    )
+                    success = config.update_user_instance(state.edit_instance_num, state.instance_url, state.edit_value)
                     if success:
                         state.message = f"Updated instance #{state.edit_instance_num}"
                     else:
-                        state.message = (
-                            f"Failed to update instance #{state.edit_instance_num}"
-                        )
+                        state.message = f"Failed to update instance #{state.edit_instance_num}"
 
                     state.edit_mode = False
                     state.instance_mode = False
@@ -986,9 +940,7 @@ def create_cli_app(config: Config):
                     try:
                         num = int(state.edit_value)
                         if 1 <= num <= len(state.instances):
-                            instance = next(
-                                (i for i in state.instances if i["number"] == num), None
-                            )
+                            instance = next((i for i in state.instances if i["number"] == num), None)
                             if not instance:
                                 instance = state.instances[num - 1]
                                 num = instance["number"]
@@ -1000,9 +952,7 @@ def create_cli_app(config: Config):
                             else:
                                 state.message = f"Failed to remove instance #{num}"
                         else:
-                            state.message = (
-                                f"Invalid number. Enter 1-{len(state.instances)}"
-                            )
+                            state.message = f"Invalid number. Enter 1-{len(state.instances)}"
                     except ValueError:
                         state.message = "Please enter a valid number"
 
@@ -1026,17 +976,13 @@ def create_cli_app(config: Config):
             else:
                 # Save and exit edit mode
                 if state.current_option and state.current_section:
-                    config.set(
-                        state.current_option, state.edit_value, state.current_section
-                    )
+                    config.set(state.current_option, state.edit_value, state.current_section)
                     state.message = f"Updated {state.current_section}.{state.current_option} to '{state.edit_value}'"
             state.edit_mode = False
         else:
             # Check if selected option has a boolean value
             if state.current_option and state.current_section:
-                current_value = config.get(
-                    state.current_option, section=state.current_section
-                )
+                current_value = config.get(state.current_option, section=state.current_section)
 
                 # If it's a boolean value, toggle it
                 if is_boolean_value(current_value):
@@ -1048,9 +994,7 @@ def create_cli_app(config: Config):
                 # Otherwise enter edit mode as usual
                 else:
                     state.edit_mode = True
-                    value = config.get(
-                        state.current_option, fallback="", section=state.current_section
-                    )
+                    value = config.get(state.current_option, fallback="", section=state.current_section)
                     # Convert any value back to string for editing
                     state.edit_value = str(value)
 
@@ -1079,9 +1023,7 @@ def create_cli_app(config: Config):
                 for idx, instance in enumerate(state.instances, 1):
                     result.append(("class:option", f"{idx}. {instance['url']}\n"))
                     if instance["api_key"]:
-                        result.append(
-                            ("class:value", f"   API Key: {instance['api_key']}\n")
-                        )
+                        result.append(("class:value", f"   API Key: {instance['api_key']}\n"))
                     else:
                         result.append(("class:value", f"   API Key: <none>\n"))
             else:
@@ -1090,9 +1032,7 @@ def create_cli_app(config: Config):
             result.append(("class:section", "==========================\n"))
 
             if not state.instance_action:
-                result.append(
-                    ("class:help", "Press: (A)dd, (E)dit, (R)emove, or ESC to cancel\n")
-                )
+                result.append(("class:help", "Press: (A)dd, (E)dit, (R)emove, or ESC to cancel\n"))
 
             result.append(("class:footer", "╚══════════════════════════════════╝\n"))
 
@@ -1113,9 +1053,7 @@ def create_cli_app(config: Config):
         # Build sections and options
         for i, section in enumerate(state.sections):
             prefix = "→ " if i == state.current_section_idx else "  "
-            style = (
-                "class:highlight" if i == state.current_section_idx else "class:section"
-            )
+            style = "class:highlight" if i == state.current_section_idx else "class:section"
             result.append((style, f"{prefix}[{section}]\n"))
 
             if i == state.current_section_idx:
@@ -1141,39 +1079,23 @@ def create_cli_app(config: Config):
                     else:
                         result.append(("class:option", "  No instances configured\n"))
 
-                    result.append(
-                        ("class:help", "  Press Ctrl+T to manage instances\n")
-                    )
+                    result.append(("class:help", "  Press Ctrl+T to manage instances\n"))
                 else:
                     # Normal section display
                     for j, option in enumerate(options):
                         value = config.get(option, fallback="", section=section)
                         prefix = "→ " if j == state.current_option_idx else "  "
-                        style = (
-                            "class:highlight"
-                            if j == state.current_option_idx
-                            else "class:option"
-                        )
+                        style = "class:highlight" if j == state.current_option_idx else "class:option"
 
                         # Add indicator for numeric options
-                        option_display = (
-                            f"{option} [#]"
-                            if option in config.NUMBER_SETTINGS
-                            else option
-                        )
+                        option_display = f"{option} [#]" if option in config.NUMBER_SETTINGS else option
 
-                        if (
-                            state.edit_mode
-                            and i == state.current_section_idx
-                            and j == state.current_option_idx
-                        ):
+                        if state.edit_mode and i == state.current_section_idx and j == state.current_option_idx:
                             result.append((style, f"{prefix}{option_display} = "))
                             result.append(("class:edit", f"{state.edit_value}"))
                             result.append(("class:cursor", "█\n"))
                         else:
-                            result.append(
-                                (style, f"{prefix}{option_display} = {value}\n")
-                            )
+                            result.append((style, f"{prefix}{option_display} = {value}\n"))
 
         result.append(("class:footer", "╚══════════════════════════════════╝\n"))
 

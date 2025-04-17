@@ -144,9 +144,7 @@ class HttpClient:
 
         # Get settings from config
         default_timeout = self.config.get_as_number("timeout", 30, section="network")
-        default_use_system_proxy = self.config.get(
-            "use_system_proxy", True, section="network"
-        )
+        default_use_system_proxy = self.config.get("use_system_proxy", True, section="network")
         default_debug = self.config.get("debug", False, section="general")
         default_user_agent = self.config.get("user_agent", section="general")
 
@@ -164,11 +162,7 @@ class HttpClient:
 
         # Setup proxy with auto-detection if enabled
         # Check if proxy is explicitly provided (including None)
-        auto_detect_proxy = (
-            auto_detect_proxy
-            if auto_detect_proxy is not None
-            else default_use_system_proxy
-        )
+        auto_detect_proxy = auto_detect_proxy if auto_detect_proxy is not None else default_use_system_proxy
         if proxy is not None:
             self.proxy = proxy  # Use provided proxy value (even if None)
         elif self.config.get("proxy", section="network"):
@@ -188,15 +182,11 @@ class HttpClient:
             if not logger.handlers:
                 console_handler = logging.StreamHandler()
                 console_handler.setLevel(logging.DEBUG)
-                formatter = logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                )
+                formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
                 console_handler.setFormatter(formatter)
                 logger.addHandler(console_handler)
 
-            logger.debug(
-                f"Initialized HttpClient with base_url={base_url}, proxy={self.proxy}, verify_proxy={verify_proxy}"
-            )
+            logger.debug(f"Initialized HttpClient with base_url={base_url}, proxy={self.proxy}, verify_proxy={verify_proxy}")
             if self.proxy:
                 logger.debug(f"Using proxy: {self.proxy}")
 
@@ -216,9 +206,7 @@ class HttpClient:
             if env_var in environ and environ[env_var]:
                 detected_proxy = environ[env_var]
                 if self.debug:
-                    logger.debug(
-                        f"Detected proxy from environment variable {env_var}: {detected_proxy}"
-                    )
+                    logger.debug(f"Detected proxy from environment variable {env_var}: {detected_proxy}")
                 break
 
         if detected_proxy:
@@ -242,9 +230,7 @@ class HttpClient:
             import winreg
 
             registry = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_USER)
-            key = winreg.OpenKey(
-                registry, r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
-            )
+            key = winreg.OpenKey(registry, r"Software\Microsoft\Windows\CurrentVersion\Internet Settings")
 
             # Check if proxy is enabled
             proxy_enabled = winreg.QueryValueEx(key, "ProxyEnable")[0]
@@ -276,12 +262,7 @@ class HttpClient:
                 server_match = re.search(r"Server:\s*([^\n]+)", output)
                 port_match = re.search(r"Port:\s*(\d+)", output)
 
-                if (
-                    enabled_match
-                    and enabled_match.group(1) == "Yes"
-                    and server_match
-                    and port_match
-                ):
+                if enabled_match and enabled_match.group(1) == "Yes" and server_match and port_match:
                     server = server_match.group(1).strip()
                     port = port_match.group(1).strip()
                     proxy_url = f"http://{server}:{port}"
@@ -324,9 +305,7 @@ class HttpClient:
                 if http_host and http_port:
                     proxy_url = f"http://{http_host}:{http_port}"
                     if self.debug:
-                        logger.debug(
-                            f"Detected Linux (GNOME) system proxy: {proxy_url}"
-                        )
+                        logger.debug(f"Detected Linux (GNOME) system proxy: {proxy_url}")
                     return proxy_url
 
             # Try for KDE
@@ -340,9 +319,7 @@ class HttpClient:
                             host, port = match.groups()
                             proxy_url = f"http://{host}:{port}"
                             if self.debug:
-                                logger.debug(
-                                    f"Detected Linux (KDE) system proxy: {proxy_url}"
-                                )
+                                logger.debug(f"Detected Linux (KDE) system proxy: {proxy_url}")
                             return proxy_url
         except Exception as e:
             if self.debug:
@@ -411,9 +388,7 @@ class HttpClient:
 
         return False
 
-    def _get_effective_proxy(
-        self, url: str, explicit_proxy: Optional[str] = None
-    ) -> Optional[str]:
+    def _get_effective_proxy(self, url: str, explicit_proxy: Optional[str] = None) -> Optional[str]:
         """
         Determine the effective proxy to use for a given URL, considering the bypass_proxy_for_localhost setting.
 
@@ -428,13 +403,9 @@ class HttpClient:
         if explicit_proxy is not None:
             # Handle Docker hostnames when network_mode is "host"
             if self.config.get("network_mode", "host", section="network") == "host":
-                explicit_proxy = self._replace_docker_hosts_with_localhost(
-                    explicit_proxy
-                )
+                explicit_proxy = self._replace_docker_hosts_with_localhost(explicit_proxy)
 
-            if self.config.get(
-                "bypass_proxy_for_localhost", True, section="network"
-            ) and self._is_localhost_url(url):
+            if self.config.get("bypass_proxy_for_localhost", True, section="network") and self._is_localhost_url(url):
                 if self.debug:
                     logger.debug(f"Bypassing explicit proxy for localhost URL: {url}")
                 return None
@@ -443,15 +414,10 @@ class HttpClient:
         # Otherwise use the default proxy unless localhost bypass is enabled
         proxy = self.proxy
         # Handle Docker hostnames when network_mode is "host"
-        if (
-            proxy
-            and self.config.get("network_mode", "host", section="network") == "host"
-        ):
+        if proxy and self.config.get("network_mode", "host", section="network") == "host":
             proxy = self._replace_docker_hosts_with_localhost(proxy)
 
-        if self.config.get(
-            "bypass_proxy_for_localhost", True, section="network"
-        ) and self._is_localhost_url(url):
+        if self.config.get("bypass_proxy_for_localhost", True, section="network") and self._is_localhost_url(url):
             if self.debug:
                 logger.debug(f"Bypassing default proxy for localhost URL: {url}")
             return None
@@ -520,11 +486,7 @@ class HttpClient:
     ) -> Response:
         """Make an HTTP request with support for retries."""
         # Get max retries from config if not provided
-        max_retries = (
-            max_retries
-            if max_retries is not None
-            else self.config.get_as_number("max_retries", 5, section="network")
-        )
+        max_retries = max_retries if max_retries is not None else self.config.get_as_number("max_retries", 5, section="network")
 
         if retries > max_retries:
             raise Exception(f"Maximum retry count ({max_retries}) exceeded")
@@ -533,11 +495,7 @@ class HttpClient:
         full_url = url if url.startswith("http") else f"{self.base_url or ''}{url}"
 
         # Prepare request options (do this once to avoid repeated lookups)
-        request_timeout = ClientTimeout(
-            total=timeout
-            or self.timeout
-            or self.config.get_as_number("timeout", 30, section="network")
-        )
+        request_timeout = ClientTimeout(total=timeout or self.timeout or self.config.get_as_number("timeout", 30, section="network"))
         request_headers = headers or self.headers
 
         # Determine if proxy should be used based on URL (bypass for localhost)
@@ -552,9 +510,7 @@ class HttpClient:
                 logger.debug(f"Params: {params}")
             if data:
                 logger.debug(f"Data: {data}")
-            logger.debug(
-                f"Proxy: {request_proxy}, Verify: {request_verify}, Timeout: {request_timeout.total}s"
-            )
+            logger.debug(f"Proxy: {request_proxy}, Verify: {request_verify}, Timeout: {request_timeout.total}s")
 
         # Create response object
         response_obj = Response()
@@ -595,9 +551,7 @@ class HttpClient:
 
                     # Debug logging for response
                     if self.debug:
-                        logger.debug(
-                            f"Response: {response.status} ({response_time:.2f}s)"
-                        )
+                        logger.debug(f"Response: {response.status} ({response_time:.2f}s)")
                         logger.debug(f"Response headers: {dict(response.headers)}")
 
                     # Handle rate limiting
@@ -605,9 +559,7 @@ class HttpClient:
                         retry_delay = float(
                             response.headers.get(
                                 "Retry-After",
-                                self.config.get_as_number(
-                                    "retry_delay", 1.0, section="network"
-                                ),
+                                self.config.get_as_number("retry_delay", 1.0, section="network"),
                             )
                         )
                         logger.debug(f"Rate limited, retrying after {retry_delay}s")
@@ -634,9 +586,7 @@ class HttpClient:
                         response_text = await response.text()
                         response_obj._text = response_text
                         if self.debug:
-                            logger.debug(
-                                f"Response text (preview): {response_text[:200]}..."
-                            )
+                            logger.debug(f"Response text (preview): {response_text[:200]}...")
 
                         try:
                             response_obj._json = await response.json()
@@ -660,9 +610,7 @@ class HttpClient:
 
             if retries < max_retries:
                 logger.debug(f"Retrying request ({retries + 1}/{max_retries})")
-                await sleep(
-                    self.config.get_as_number("retry_delay", 1.0, section="network")
-                )
+                await sleep(self.config.get_as_number("retry_delay", 1.0, section="network"))
                 return await self.request(
                     url,
                     method,
@@ -701,9 +649,7 @@ class HttpClient:
         Returns:
             Response object
         """
-        return await self.request(
-            url, method="get", params=params, headers=headers, timeout=timeout, **kwargs
-        )
+        return await self.request(url, method="get", params=params, headers=headers, timeout=timeout, **kwargs)
 
     async def post(
         self,
@@ -725,13 +671,9 @@ class HttpClient:
         Returns:
             Response object
         """
-        return await self.request(
-            url, method="post", data=data, headers=headers, timeout=timeout, **kwargs
-        )
+        return await self.request(url, method="post", data=data, headers=headers, timeout=timeout, **kwargs)
 
-    async def _get_auth_headers_for_url(
-        self, url: str, api_key: str = None, bearer: str = None
-    ) -> Dict[str, str]:
+    async def _get_auth_headers_for_url(self, url: str, api_key: str = None, bearer: str = None) -> Dict[str, str]:
         """
         Get authorization headers for a URL based on provided credentials or user instances.
 
@@ -797,9 +739,7 @@ class HttpClient:
             return
 
         if self.debug:
-            logger.debug(
-                f"Performing bulk {method.upper()} request to {len(urls)} URLs"
-            )
+            logger.debug(f"Performing bulk {method.upper()} request to {len(urls)} URLs")
 
         # Store tasks to ensure proper cancellation
         tasks = []
@@ -817,16 +757,8 @@ class HttpClient:
                 try:
                     # Process URL and credentials
                     url = url_data if isinstance(url_data, str) else url_data.get("url")
-                    api_key = (
-                        None
-                        if isinstance(url_data, str)
-                        else url_data.get("api_key", None)
-                    )
-                    bearer = (
-                        None
-                        if isinstance(url_data, str)
-                        else url_data.get("bearer", None)
-                    )
+                    api_key = None if isinstance(url_data, str) else url_data.get("api_key", None)
+                    bearer = None if isinstance(url_data, str) else url_data.get("bearer", None)
 
                     # Check if we should bypass proxy for this URL
                     request_kwargs = kwargs.copy()
@@ -834,9 +766,7 @@ class HttpClient:
                         request_kwargs["proxy"] = self._get_effective_proxy(url)
 
                     # Add authorization headers if needed
-                    auth_headers = await self._get_auth_headers_for_url(
-                        url, api_key, bearer
-                    )
+                    auth_headers = await self._get_auth_headers_for_url(url, api_key, bearer)
                     if auth_headers:
                         request_headers = (
                             request_kwargs.get("headers", {}).copy()
@@ -849,22 +779,16 @@ class HttpClient:
                         request_kwargs["headers"] = request_headers
 
                     # Don't close the session in individual requests
-                    response = await self.request(
-                        url, method=method, close=False, **request_kwargs
-                    )
+                    response = await self.request(url, method=method, close=False, **request_kwargs)
 
                     # Consider 2xx and 3xx status codes as successful
                     if response.status < 400:
                         if self.debug:
-                            logger.debug(
-                                f"Request to {url} succeeded with status {response.status}"
-                            )
+                            logger.debug(f"Request to {url} succeeded with status {response.status}")
                         return True, response
                     else:
                         if self.debug:
-                            logger.debug(
-                                f"Request to {url} failed with status {response.status}"
-                            )
+                            logger.debug(f"Request to {url} failed with status {response.status}")
                         return False, response
                 except Exception as e:
                     if self.debug:
@@ -985,9 +909,7 @@ class HttpClient:
         Returns:
             The first successful Response object or an error Response if all requests fail
         """
-        return await self.bulk_request(
-            urls, method="post", data=data, headers=headers, timeout=timeout, **kwargs
-        )
+        return await self.bulk_request(urls, method="post", data=data, headers=headers, timeout=timeout, **kwargs)
 
     async def _download_and_track(
         self, url_data: Union[str, Dict[str, str]], options: Dict
@@ -1049,20 +971,14 @@ class HttpClient:
 
         # Use config for default folder path if not specified
         if not folder_path:
-            folder_path = self.config.get(
-                "default_downloads_dir", str(Path.home() / "Downloads"), section="paths"
-            )
+            folder_path = self.config.get("default_downloads_dir", str(Path.home() / "Downloads"), section="paths")
 
         # Use config for max_concurrent if not specified
         if max_concurrent is None:
-            max_concurrent = self.config.get_as_number(
-                "max_concurrent_downloads", 3, section="network"
-            )
+            max_concurrent = self.config.get_as_number("max_concurrent_downloads", 3, section="network")
 
         if self.debug:
-            logger.debug(
-                f"Starting bulk download of {len(urls)} files, max_concurrent={max_concurrent}"
-            )
+            logger.debug(f"Starting bulk download of {len(urls)} files, max_concurrent={max_concurrent}")
 
         results = []
         active_tasks = set()
@@ -1080,28 +996,20 @@ class HttpClient:
 
                 # Use config values for defaults if not in options
                 if "callback_rate" not in download_options:
-                    download_options["callback_rate"] = self.config.get_as_number(
-                        "callback_rate", 0.128, section="network"
-                    )
+                    download_options["callback_rate"] = self.config.get_as_number("callback_rate", 0.128, section="network")
 
                 if "timeout" not in download_options:
-                    download_options["timeout"] = self.config.get_as_number(
-                        "timeout", 30, section="network"
-                    )
+                    download_options["timeout"] = self.config.get_as_number("timeout", 30, section="network")
 
                 # Create task
-                task = asyncio.create_task(
-                    self._download_and_track(url_data, download_options)
-                )
+                task = asyncio.create_task(self._download_and_track(url_data, download_options))
                 active_tasks.add(task)
                 # Add callback to remove the task when done
                 task.add_done_callback(active_tasks.discard)
 
                 if self.debug:
                     url = url_data if isinstance(url_data, str) else url_data.get("url")
-                    logger.debug(
-                        f"Added download task for {url}, active tasks: {len(active_tasks)}"
-                    )
+                    logger.debug(f"Added download task for {url}, active tasks: {len(active_tasks)}")
 
             # Wait a bit if we have active tasks, otherwise we're done
             if active_tasks:
@@ -1120,9 +1028,7 @@ class HttpClient:
                         except Exception as e:
                             # This should not happen as exceptions are handled in _download_and_track
                             if self.debug:
-                                logger.debug(
-                                    f"Unexpected error in bulk download: {str(e)}"
-                                )
+                                logger.debug(f"Unexpected error in bulk download: {str(e)}")
 
     async def bulk_download(
         self,
@@ -1131,9 +1037,7 @@ class HttpClient:
         max_concurrent: int = None,
         **options,
     ) -> List[Tuple[str, Path, Exception]]:
-        results = await self.bulk_download_generator(
-            urls, folder_path, max_concurrent, **options
-        )
+        results = await self.bulk_download_generator(urls, folder_path, max_concurrent, **options)
         return results
 
     async def bulk_detached_download(
@@ -1163,14 +1067,10 @@ class HttpClient:
 
         # Apply configuration defaults if not explicitly provided
         if folder_path is None:
-            folder_path = self.config.get(
-                "default_downloads_dir", str(Path.home() / "Downloads"), section="paths"
-            )
+            folder_path = self.config.get("default_downloads_dir", str(Path.home() / "Downloads"), section="paths")
 
         if max_concurrent is None:
-            max_concurrent = self.config.get_as_number(
-                "max_concurrent_downloads", 3, section="network"
-            )
+            max_concurrent = self.config.get_as_number("max_concurrent_downloads", 3, section="network")
 
         # Create a task for the bulk download
         bulk_task = asyncio.create_task(
@@ -1209,13 +1109,7 @@ class HttpClient:
 
         # Merge authorization headers with existing headers
         if auth_headers:
-            request_headers = (
-                options.get("headers", {}).copy()
-                if "headers" in options
-                else self.headers.copy()
-                if self.headers
-                else {}
-            )
+            request_headers = options.get("headers", {}).copy() if "headers" in options else self.headers.copy() if self.headers else {}
             request_headers.update(auth_headers)
             options["headers"] = request_headers
 
@@ -1224,9 +1118,7 @@ class HttpClient:
             logger.debug(f"Starting download from: {url}")
             logger.debug(f"Download options: {options}")
 
-        folder_path = options.get(
-            "folder_path", getenv("DOWNLOAD_FOLDER")
-        ) or self.config.get(
+        folder_path = options.get("folder_path", getenv("DOWNLOAD_FOLDER")) or self.config.get(
             "default_downloads_dir", str(Path.home() / "Downloads"), section="paths"
         )
         if not path.exists(folder_path):
@@ -1292,20 +1184,13 @@ class HttpClient:
                 download_kwargs["proxy"] = request_proxy
 
             if self.debug:
-                logger.debug(
-                    f"Starting download request with kwargs: {download_kwargs}"
-                )
+                logger.debug(f"Starting download request with kwargs: {download_kwargs}")
 
             # Add retry loop for download
             for retry_attempt in range(retry_count + 1):
                 if retry_attempt > 0:
-                    logger.debug(
-                        f"Retry attempt {retry_attempt}/{retry_count} for download: {url}"
-                    )
-                    await sleep(
-                        self.config.get_as_number("retry_delay", 1.0, section="network")
-                        * retry_attempt
-                    )
+                    logger.debug(f"Retry attempt {retry_attempt}/{retry_count} for download: {url}")
+                    await sleep(self.config.get_as_number("retry_delay", 1.0, section="network") * retry_attempt)
 
                 try:
                     async with session.get(url, **download_kwargs) as response:
@@ -1315,10 +1200,7 @@ class HttpClient:
                                 logger.debug(error_msg)
 
                             # Only retry on certain error codes
-                            if (
-                                response.status in (429, 500, 502, 503, 504)
-                                and retry_attempt < retry_count
-                            ):
+                            if response.status in (429, 500, 502, 503, 504) and retry_attempt < retry_count:
                                 continue
                             raise Exception(error_msg)
 
@@ -1334,9 +1216,7 @@ class HttpClient:
                             adjusted_timeout = min(30 + size_mb, download_timeout * 2)
                             if adjusted_timeout > download_timeout:
                                 if self.debug:
-                                    logger.debug(
-                                        f"Increasing timeout to {adjusted_timeout}s based on file size ({size_mb:.1f}MB)"
-                                    )
+                                    logger.debug(f"Increasing timeout to {adjusted_timeout}s based on file size ({size_mb:.1f}MB)")
                                 # Create a new timeout and update the request
                                 request_timeout = ClientTimeout(total=adjusted_timeout)
                                 download_kwargs["timeout"] = request_timeout
@@ -1344,13 +1224,9 @@ class HttpClient:
                         # Determine filename (optimize the conditional logic)
                         filename = options.get("filename")
                         if not filename:
-                            content_disposition = response.headers.get(
-                                "Content-Disposition", ""
-                            )
+                            content_disposition = response.headers.get("Content-Disposition", "")
                             if 'filename="' in content_disposition:
-                                filename = content_disposition.split('filename="')[
-                                    1
-                                ].split('"')[0]
+                                filename = content_disposition.split('filename="')[1].split('"')[0]
                             else:
                                 filename = url.split("/")[-1].split("?")[0]
 
@@ -1359,13 +1235,9 @@ class HttpClient:
                             logger.debug(f"Downloading to: {file_path}")
 
                         # Download the file with optimized buffer handling
-                        buffer_size = self.config.get_as_number(
-                            "download_buffer_size", 1024 * 1024, "network"
-                        )
+                        buffer_size = self.config.get_as_number("download_buffer_size", 1024 * 1024, "network")
                         if self.debug:
-                            logger.debug(
-                                f"Using buffer size: {buffer_size / 1024:.0f}KB"
-                            )
+                            logger.debug(f"Using buffer size: {buffer_size / 1024:.0f}KB")
 
                         async with aopen(file_path, "wb") as f:
                             if self.debug:
@@ -1391,34 +1263,23 @@ class HttpClient:
 
                                     # Update progress if needed (reduce time() calls)
                                     current_time = time()
-                                    time_since_callback = (
-                                        current_time - last_callback_time
-                                    )
+                                    time_since_callback = current_time - last_callback_time
 
                                     if time_since_callback >= callback_rate:
                                         # Calculate download stats
                                         if time_since_callback > 0:
-                                            download_speed = (
-                                                downloaded_size - last_size
-                                            ) / time_since_callback
+                                            download_speed = (downloaded_size - last_size) / time_since_callback
                                         else:
                                             download_speed = 0
 
                                         eta = (
-                                            (total_size - downloaded_size)
-                                            / download_speed
-                                            if download_speed > 0 and total_size > 0
-                                            else 0
+                                            (total_size - downloaded_size) / download_speed if download_speed > 0 and total_size > 0 else 0
                                         )
                                         time_passed = current_time - start_time
 
                                         # Debug logging for download progress
                                         if self.debug:
-                                            percent = (
-                                                (downloaded_size / total_size * 100)
-                                                if total_size > 0
-                                                else 0
-                                            )
+                                            percent = (downloaded_size / total_size * 100) if total_size > 0 else 0
                                             logger.debug(
                                                 f"Downloaded: {downloaded_size / 1024 / 1024:.2f}MB / "
                                                 f"{total_size / 1024 / 1024:.2f}MB ({percent:.1f}%) at "
@@ -1454,38 +1315,25 @@ class HttpClient:
                                     if max_speed and download_speed > max_speed:
                                         sleep_time = chunk_size / max_speed
                                         if self.debug:
-                                            logger.debug(
-                                                f"Rate limiting: sleeping for {sleep_time:.2f}s"
-                                            )
+                                            logger.debug(f"Rate limiting: sleeping for {sleep_time:.2f}s")
                                         await sleep(sleep_time)
 
                                     # Check if download is complete
-                                    if (
-                                        total_size != -1
-                                        and downloaded_size >= total_size
-                                    ):
+                                    if total_size != -1 and downloaded_size >= total_size:
                                         if self.debug:
-                                            logger.debug(
-                                                "Download complete (size match)"
-                                            )
+                                            logger.debug("Download complete (size match)")
                                         break
 
                                 except asyncio.TimeoutError:
                                     if self.debug:
-                                        logger.debug(
-                                            f"Timeout while reading chunk after downloading {downloaded_size / 1024 / 1024:.2f}MB"
-                                        )
+                                        logger.debug(f"Timeout while reading chunk after downloading {downloaded_size / 1024 / 1024:.2f}MB")
 
                                     # If we've downloaded a significant portion, try to continue
                                     if (
-                                        downloaded_size > buffer_size * 5
-                                        if buffer_size * 5 < 1024 * 1024 * 100
-                                        else 1024 * 1024 * 100
+                                        downloaded_size > buffer_size * 5 if buffer_size * 5 < 1024 * 1024 * 100 else 1024 * 1024 * 100
                                     ):  # At least 5 times the download buffer size but not more than 100Mb
                                         if self.debug:
-                                            logger.debug(
-                                                "Continuing download despite chunk timeout"
-                                            )
+                                            logger.debug("Continuing download despite chunk timeout")
                                         continue
 
                                     # Otherwise, retry the whole download
@@ -1501,9 +1349,7 @@ class HttpClient:
                     if downloaded_size <= 1024 and retry_attempt < retry_count:
                         # Very small file, might be an error response
                         if self.debug:
-                            logger.debug(
-                                f"Downloaded file is too small ({downloaded_size} bytes), retrying..."
-                            )
+                            logger.debug(f"Downloaded file is too small ({downloaded_size} bytes), retrying...")
                         continue
 
                     # Process completion
@@ -1524,9 +1370,7 @@ class HttpClient:
                             }
 
                             if self.debug:
-                                logger.debug(
-                                    "Updating status parent with completion data"
-                                )
+                                logger.debug("Updating status parent with completion data")
 
                             if isinstance(status_parent, dict):
                                 status_parent.update(completed_data)
@@ -1546,9 +1390,7 @@ class HttpClient:
                             }
 
                             if self.debug:
-                                logger.debug(
-                                    f"Calling done callback with data: {done_data}"
-                                )
+                                logger.debug(f"Calling done callback with data: {done_data}")
 
                             if iscoroutinefunction(done_callback):
                                 await done_callback(**done_data)
@@ -1562,14 +1404,10 @@ class HttpClient:
                     # Only retry on timeouts and connection errors
                     if retry_attempt < retry_count:
                         if self.debug:
-                            logger.debug(
-                                f"Download error (attempt {retry_attempt + 1}/{retry_count + 1}): {str(e)}"
-                            )
+                            logger.debug(f"Download error (attempt {retry_attempt + 1}/{retry_count + 1}): {str(e)}")
                     else:
                         # Last attempt failed, re-raise
-                        logger.error(
-                            f"Download failed after {retry_count + 1} attempts: {str(e)}"
-                        )
+                        logger.error(f"Download failed after {retry_count + 1} attempts: {str(e)}")
                         raise
 
         except Exception as e:
@@ -1586,9 +1424,7 @@ class HttpClient:
 
         return Path(file_path)
 
-    async def _process_download_callbacks(
-        self, status_callback, status_parent, progress_data
-    ):
+    async def _process_download_callbacks(self, status_callback, status_parent, progress_data):
         """Helper method to process download callbacks and status updates."""
         # Call status callback if provided
         if status_callback:
@@ -1605,9 +1441,7 @@ class HttpClient:
                 for key, value in progress_data.items():
                     setattr(status_parent, key, value)
             else:
-                raise TypeError(
-                    "status_parent must be a dict or an object with attributes"
-                )
+                raise TypeError("status_parent must be a dict or an object with attributes")
 
     async def detached_download(
         self,
@@ -1626,19 +1460,13 @@ class HttpClient:
 
         # Apply configuration defaults if not explicitly provided
         if "folder_path" not in options:
-            options["folder_path"] = self.config.get(
-                "default_downloads_dir", str(Path.home() / "Downloads"), section="paths"
-            )
+            options["folder_path"] = self.config.get("default_downloads_dir", str(Path.home() / "Downloads"), section="paths")
 
         if "callback_rate" not in options:
-            options["callback_rate"] = self.config.get_as_number(
-                "callback_rate", 0.128, section="network"
-            )
+            options["callback_rate"] = self.config.get_as_number("callback_rate", 0.128, section="network")
 
         if "timeout" not in options:
-            options["timeout"] = self.config.get_as_number(
-                "timeout", 30, section="network"
-            )
+            options["timeout"] = self.config.get_as_number("timeout", 30, section="network")
 
         # Create a task for the download
         download_task = asyncio.create_task(self.download_file(**options))
@@ -1662,9 +1490,7 @@ class HttpClient:
         """
         # YouTube playlist
         # Define a regex pattern to match all YouTube URL variations
-        youtube_pattern = (
-            r"(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)(?:\/[^\s]*)?"
-        )
+        youtube_pattern = r"(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)(?:\/[^\s]*)?"
 
         # Check if the URL is a YouTube link
         if re.match(youtube_pattern, url):

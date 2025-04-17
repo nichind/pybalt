@@ -41,7 +41,7 @@ keywords = [
 
 [project.urls]
 "Homepage" = "https://github.com/nichind/pybalt"
-"Bug Tracker" = "https://github.com/nichind/pybalt/issues"
+"Issues" = "https://github.com/nichind/pybalt/issues"
 
 [project.scripts]
 pybalt = "pybalt.__main__:main"
@@ -50,8 +50,8 @@ cobalt = "pybalt.__main__:main"
 [tool.setuptools]
 packages = ["pybalt"]
 
-[tool.setuptools.package-data]
-pybalt = ["locales/*.txt"]
-
 [tool.setuptools.dynamic]
-version = {attr = "pybalt.PYBALT_VERSION"}
+version = {attr = "pybalt.VERSION"}
+
+[tool.ruff]
+line-length = 140

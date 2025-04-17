@@ -19,9 +19,7 @@ class Remuxer:
             if not logger.handlers:
                 console_handler = logging.StreamHandler()
                 console_handler.setLevel(logging.DEBUG)
-                formatter = logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                )
+                formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
                 console_handler.setFormatter(formatter)
                 logger.addHandler(console_handler)
 
@@ -33,9 +31,7 @@ class Remuxer:
         start_time = time()
         output = path.with_name(f"rmx_{path.name}")
         progress_file = (
-            self.config._get_config_dir()
-            / "logs"
-            / f"{path.name if len(path.name) <= 20 else path.name[:8] + '...' + path.name[-8:]}.log"
+            self.config._get_config_dir() / "logs" / f"{path.name if len(path.name) <= 20 else path.name[:8] + '...' + path.name[-8:]}.log"
         )
         if progress_file.exists():
             progress_file.unlink()
@@ -93,8 +89,7 @@ class Remuxer:
             path.unlink()
             output = output.rename(path)
         logger.debug(
-            f"Remux result: {output}"
-            f"{output.stat().st_size / 1024 / 1024:.2f}MB {time() - start_time:.2f}s",
+            f"Remux result: {output}" f"{output.stat().st_size / 1024 / 1024:.2f}MB {time() - start_time:.2f}s",
         )
         return output
 

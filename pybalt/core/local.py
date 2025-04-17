@@ -77,9 +77,7 @@ class LocalInstance:
 
             for cmd in compose_commands:
                 try:
-                    subprocess.run(
-                        cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-                    )
+                    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     return True
                 except (subprocess.SubprocessError, FileNotFoundError):
                     continue
@@ -166,9 +164,7 @@ To fix this issue:
             )
             return ["docker-compose"]
         except (subprocess.SubprocessError, FileNotFoundError):
-            raise LocalInstanceError(
-                "Docker Compose not found. Please install Docker Compose."
-            )
+            raise LocalInstanceError("Docker Compose not found. Please install Docker Compose.")
 
     def create_instance_dir(self) -> None:
         """Create the directory for the local instance if it doesn't exist."""
@@ -244,50 +240,34 @@ To fix this issue:
 
         # Add extra_hosts configuration for Linux to enable host.docker.internal
         if platform.system() == "Linux":
-            compose_data["services"]["cobalt-api"]["extra_hosts"] = [
-                "host.docker.internal:host-gateway"
-            ]
+            compose_data["services"]["cobalt-api"]["extra_hosts"] = ["host.docker.internal:host-gateway"]
 
         # Add optional environment variables
         if api_auth_required == "1" and api_key:
             api_keys_file = self.instance_dir / "keys.json"
-            compose_data["services"]["cobalt-api"]["environment"]["API_KEY_URL"] = (
-                "file:///keys.json"
-            )
-            compose_data["services"]["cobalt-api"]["environment"][
-                "API_AUTH_REQUIRED"
-            ] = "1"
+            compose_data["services"]["cobalt-api"]["environment"]["API_KEY_URL"] = "file:///keys.json"
+            compose_data["services"]["cobalt-api"]["environment"]["API_AUTH_REQUIRED"] = "1"
 
             # Add the volume mount for the keys.json file
             if "volumes" not in compose_data["services"]["cobalt-api"]:
                 compose_data["services"]["cobalt-api"]["volumes"] = []
-            compose_data["services"]["cobalt-api"]["volumes"].append(
-                "./keys.json:/keys.json"
-            )
+            compose_data["services"]["cobalt-api"]["volumes"].append("./keys.json:/keys.json")
 
             # Create the keys.json file
             self._create_keys_file(api_key, api_keys_file)
 
         if duration_limit:
-            compose_data["services"]["cobalt-api"]["environment"]["DURATION_LIMIT"] = (
-                duration_limit
-            )
+            compose_data["services"]["cobalt-api"]["environment"]["DURATION_LIMIT"] = duration_limit
 
         if cors_wildcard:
-            compose_data["services"]["cobalt-api"]["environment"]["CORS_WILDCARD"] = (
-                cors_wildcard
-            )
+            compose_data["services"]["cobalt-api"]["environment"]["CORS_WILDCARD"] = cors_wildcard
 
         if disabled_services:
-            compose_data["services"]["cobalt-api"]["environment"][
-                "DISABLED_SERVICES"
-            ] = disabled_services
+            compose_data["services"]["cobalt-api"]["environment"]["DISABLED_SERVICES"] = disabled_services
 
         # Add proxy environment variable if proxy is configured
         if proxy_url:
-            compose_data["services"]["cobalt-api"]["environment"][
-                "API_EXTERNAL_PROXY"
-            ] = proxy_url
+            compose_data["services"]["cobalt-api"]["environment"]["API_EXTERNAL_PROXY"] = proxy_url
 
         # Save the docker-compose.yml file
         with open(self.docker_compose_path, "w") as f:
@@ -336,9 +316,7 @@ To fix this issue:
                     compose_data = yaml.safe_load(f)
 
                 # Add the cookie path environment variable
-                compose_data["services"]["cobalt-api"]["environment"]["COOKIE_PATH"] = (
-                    "/cookies.json"
-                )
+                compose_data["services"]["cobalt-api"]["environment"]["COOKIE_PATH"] = "/cookies.json"
 
                 # Add the volume mount for the cookies.json file
                 if "volumes" not in compose_data["services"]["cobalt-api"]:
@@ -346,13 +324,8 @@ To fix this issue:
 
                 # Check if the mount already exists
                 cookie_mount = "./cookies.json:/cookies.json"
-                if (
-                    cookie_mount
-                    not in compose_data["services"]["cobalt-api"]["volumes"]
-                ):
-                    compose_data["services"]["cobalt-api"]["volumes"].append(
-                        cookie_mount
-                    )
+                if cookie_mount not in compose_data["services"]["cobalt-api"]["volumes"]:
+                    compose_data["services"]["cobalt-api"]["volumes"].append(cookie_mount)
 
                 # Save the updated compose file
                 with open(self.docker_compose_path, "w") as f:
@@ -369,15 +342,11 @@ To fix this issue:
             True if the instance was successfully started, False otherwise.
         """
         if not os.path.exists(self.docker_compose_path):
-            raise LocalInstanceError(
-                "Docker Compose file not found. Please run setup first."
-            )
+            raise LocalInstanceError("Docker Compose file not found. Please run setup first.")
 
         # Check Docker permissions first on Linux
         if platform.system() == "Linux" and not self.check_docker_permissions():
-            self._handle_docker_permission_error(
-                "permission denied while trying to connect to the Docker daemon socket"
-            )
+            self._handle_docker_permission_error("permission denied while trying to connect to the Docker daemon socket")
 
         try:
             compose_cmd = self.get_docker_compose_command()
@@ -391,10 +360,7 @@ To fix this issue:
             return True
         except subprocess.SubprocessError as e:
             error_text = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
-            if (
-                "permission denied" in error_text
-                and "/var/run/docker.sock" in error_text
-            ):
+            if "permission denied" in error_text and "/var/run/docker.sock" in error_text:
                 self._handle_docker_permission_error(error_text)
             raise LocalInstanceError(f"Failed to start instance: {e}")
 
@@ -406,9 +372,7 @@ To fix this issue:
             True if the instance was successfully stopped, False otherwise.
         """
         if not os.path.exists(self.docker_compose_path):
-            raise LocalInstanceError(
-                "Docker Compose file not found. Please run setup first."
-            )
+            raise LocalInstanceError("Docker Compose file not found. Please run setup first.")
 
         try:
             compose_cmd = self.get_docker_compose_command()
@@ -445,8 +409,7 @@ To fix this issue:
         try:
             compose_cmd = self.get_docker_compose_command()
             result = subprocess.run(
-                compose_cmd
-                + ["-f", str(self.docker_compose_path), "ps", "--format", "json"],
+                compose_cmd + ["-f", str(self.docker_compose_path), "ps", "--format", "json"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -465,11 +428,7 @@ To fix this issue:
                         containers = json.loads(output)
                     # For some Docker Compose versions, output might be one JSON object per line
                     else:
-                        containers = [
-                            json.loads(line)
-                            for line in output.split("\n")
-                            if line.strip()
-                        ]
+                        containers = [json.loads(line) for line in output.split("\n") if line.strip()]
             except json.JSONDecodeError:
                 # Fallback to non-JSON format parsing
                 ps_result = subprocess.run(
@@ -480,17 +439,13 @@ To fix this issue:
                     cwd=self.instance_dir,
                 )
                 return {
-                    "running": "cobalt-api" in ps_result.stdout
-                    and "Up" in ps_result.stdout,
+                    "running": "cobalt-api" in ps_result.stdout and "Up" in ps_result.stdout,
                     "raw_output": ps_result.stdout,
                 }
 
             # Check if any container is the cobalt-api and is running
             for container in containers:
-                if (
-                    container.get("Name") == "cobalt-api"
-                    or container.get("Service") == "cobalt-api"
-                ):
+                if container.get("Name") == "cobalt-api" or container.get("Service") == "cobalt-api":
                     state = container.get("State", "")
                     if isinstance(state, str) and "running" in state.lower():
                         return {"running": True, "container_info": container}
@@ -522,15 +477,11 @@ Please install Docker and Docker Compose before continuing:
         self.create_instance_dir()
 
         # Collect configuration
-        port = click.prompt(
-            "Enter port number for the instance", default=9000, type=int
-        )
+        port = click.prompt("Enter port number for the instance", default=9000, type=int)
         api_auth = click.confirm("Enable API key authentication?", default=False)
         api_key = ""
         if api_auth:
-            api_key = click.prompt(
-                "Enter API key (leave empty to generate one)", default=""
-            )
+            api_key = click.prompt("Enter API key (leave empty to generate one)", default="")
             if not api_key:
                 # Generate a random API key
                 import uuid
@@ -558,9 +509,7 @@ Please install Docker and Docker Compose before continuing:
         self.config.set("disabled_services", disabled_services, "local")
 
         # Ask about proxy settings
-        use_pc_proxy = click.confirm(
-            "Use system proxy for the local instance?", default=False
-        )
+        use_pc_proxy = click.confirm("Use system proxy for the local instance?", default=False)
 
         proxy_url = ""
         if use_pc_proxy:
@@ -572,9 +521,7 @@ Please install Docker and Docker Compose before continuing:
                     proxy_url = detected_proxy
 
             if not detected_proxy or not use_detected:
-                proxy_url = click.prompt(
-                    "Enter proxy URL (leave empty for none)", default=""
-                )
+                proxy_url = click.prompt("Enter proxy URL (leave empty for none)", default="")
 
         # Save proxy settings to config
         self.config.set("use_pc_proxy", "True" if use_pc_proxy else "False", "local")
@@ -585,15 +532,9 @@ Please install Docker and Docker Compose before continuing:
         self.generate_docker_compose_file()
 
         # Ask about cookies
-        if click.confirm(
-            "Do you want to set up cookies for authenticated services?", default=False
-        ):
-            click.echo(
-                "You can paste a JSON object with cookies or provide a path to a cookies.json file."
-            )
-            cookie_source = click.prompt(
-                "Enter cookies JSON or file path (leave empty to skip)", default=""
-            )
+        if click.confirm("Do you want to set up cookies for authenticated services?", default=False):
+            click.echo("You can paste a JSON object with cookies or provide a path to a cookies.json file.")
+            cookie_source = click.prompt("Enter cookies JSON or file path (leave empty to skip)", default="")
 
             if cookie_source:
                 if os.path.exists(cookie_source):
@@ -645,9 +586,7 @@ def start():
     local_instance = LocalInstance()
     try:
         if local_instance.start_instance():
-            port = local_instance.config.get_as_number(
-                "local_instance_port", 9000, "local"
-            )
+            port = local_instance.config.get_as_number("local_instance_port", 9000, "local")
             click.echo(f"Local Cobalt instance started on http://localhost:{port}/")
     except LocalInstanceError as e:
         click.echo(f"Error: {e}")
@@ -670,9 +609,7 @@ def restart():
     local_instance = LocalInstance()
     try:
         if local_instance.restart_instance():
-            port = local_instance.config.get_as_number(
-                "local_instance_port", 9000, "local"
-            )
+            port = local_instance.config.get_as_number("local_instance_port", 9000, "local")
             click.echo(f"Local Cobalt instance restarted on http://localhost:{port}/")
     except LocalInstanceError as e:
         click.echo(f"Error: {e}")
@@ -705,19 +642,13 @@ def location():
 
 @cli.command()
 @click.option("--port", type=int, help="Port number for the instance")
-@click.option(
-    "--auth/--no-auth", default=None, help="Enable/disable API key authentication"
-)
+@click.option("--auth/--no-auth", default=None, help="Enable/disable API key authentication")
 @click.option("--api-key", help="API key for authentication")
 @click.option("--duration-limit", type=int, help="Maximum duration limit in seconds")
 @click.option("--disabled-services", help="Comma-separated list of services to disable")
-@click.option(
-    "--use-proxy/--no-proxy", default=None, help="Use system proxy for the instance"
-)
+@click.option("--use-proxy/--no-proxy", default=None, help="Use system proxy for the instance")
 @click.option("--proxy-url", help="Proxy URL for the instance")
-def config(
-    port, auth, api_key, duration_limit, disabled_services, use_proxy, proxy_url
-):
+def config(port, auth, api_key, duration_limit, disabled_services, use_proxy, proxy_url):
     """Configure the local instance settings."""
     local_instance = LocalInstance()
     config = local_instance.config
@@ -754,26 +685,16 @@ def config(
     if changed:
         # Regenerate the docker-compose file with new settings
         local_instance.generate_docker_compose_file()
-        click.echo(
-            "Configuration updated. You need to restart the instance for changes to take effect."
-        )
+        click.echo("Configuration updated. You need to restart the instance for changes to take effect.")
     else:
         # Show current configuration
         click.echo("Current configuration:")
-        click.echo(
-            f"Port: {config.get_as_number('local_instance_port', 9000, 'local')}"
-        )
-        click.echo(
-            f"Auth required: {config.get('api_auth_required', '0', 'local') == '1'}"
-        )
+        click.echo(f"Port: {config.get_as_number('local_instance_port', 9000, 'local')}")
+        click.echo(f"Auth required: {config.get('api_auth_required', '0', 'local') == '1'}")
         click.echo(f"API key: {config.get('api_key', '', 'local')}")
-        click.echo(
-            f"Duration limit: {config.get('duration_limit', '10800', 'local')} seconds"
-        )
+        click.echo(f"Duration limit: {config.get('duration_limit', '10800', 'local')} seconds")
         click.echo(f"Disabled services: {config.get('disabled_services', '', 'local')}")
-        click.echo(
-            f"Use system proxy: {config.get('use_pc_proxy', 'False', 'local') == 'True'}"
-        )
+        click.echo(f"Use system proxy: {config.get('use_pc_proxy', 'False', 'local') == 'True'}")
         click.echo(f"Proxy URL: {config.get('proxy_url', '', 'local')}")
 
 
@@ -791,9 +712,7 @@ def cookies(json_input, source):
             with open(local_instance.cookies_path, "r") as f:
                 click.echo(f.read())
         else:
-            click.echo(
-                "No cookies file found. Use this command with a file path or JSON content to create one."
-            )
+            click.echo("No cookies file found. Use this command with a file path or JSON content to create one.")
         return
 
     try:
@@ -806,9 +725,7 @@ def cookies(json_input, source):
                 cookies_content = f.read()
             local_instance.create_cookies_file(cookies_content)
         else:
-            click.echo(
-                "Error: File not found. If you're providing JSON content directly, use the --json flag."
-            )
+            click.echo("Error: File not found. If you're providing JSON content directly, use the --json flag.")
             return
 
         click.echo("Cookies file created successfully.")

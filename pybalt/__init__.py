@@ -1,8 +1,26 @@
 from . import core
-from .core import client, local_instance, config, remux, wrapper
+from .core import (
+    client,
+    local_instance,
+    config,
+    remux,
+    wrapper,
+    manager,
+    download,
+    remuxer,
+)
 
+VERSION = "2025.4.3"
 
-VERSION = "2025.4.2"
-
-
-__all__ = [VERSION, core, client, local_instance, config, remux, wrapper]
+__all__ = [
+    VERSION,
+    core,
+    client,
+    local_instance,
+    config,
+    wrapper,
+    manager,
+    download,
+    remuxer,
+    remux,
+]
