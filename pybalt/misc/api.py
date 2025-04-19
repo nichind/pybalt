@@ -80,6 +80,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             --accent-color: #3a86ff;
             --error-color: #ff4c4c;
             --success-color: #4caf50;
+            --warning-color: #ff9800;
             --shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
         }
         
@@ -286,6 +287,66 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             50% { opacity: 1; }
             100% { opacity: 0.3; }
         }
+        
+        /* Warning Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal {
+            background-color: var(--card-color);
+            border-radius: 10px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: var(--shadow);
+        }
+        
+        .modal-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            color: var(--warning-color);
+        }
+        
+        .modal-header svg {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+        }
+        
+        .modal-content {
+            margin-bottom: 1.5rem;
+        }
+        
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .modal-button {
+            padding: 0.7rem 1.2rem;
+            border: none;
+            border-radius: 5px;
+            background-color: var(--warning-color);
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .modal-button:hover {
+            opacity: 0.9;
+        }
     </style>
 </head>
 <body>
@@ -320,6 +381,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div class="response" id="response"></div>
     </div>
+    
+    <!-- Warning Modal -->
+    <div class="modal-overlay" id="warning-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <h2>Security Warning</h2>
+            </div>
+            <div class="modal-content">
+                <p>Be aware that this service uses a bunch of random cobalt instances hosted all across the world. The pybalt/cobalt devs have nothing to do with code changes inside cobalt-instances on their side.</p>
+                <p>Some instances can answer with some kind of malware. Do not run executable files or files with strange extensions that you download from here.</p>
+                <p>Be safe and have fun downloading!</p>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-button" id="warning-acknowledge">I understand, proceed</button>
+            </div>
+        </div>
+    </div>
+    
     <div class="footer">
         Powered by <a href="https://github.com/nichind/pybalt" target="_blank">pybalt</a> • Version """ + VERSION + """
         <div class="instance-count loading" id="instance-count">
@@ -356,6 +440,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         });
         
         document.getElementById('download-btn').addEventListener('click', async () => {
+            // Check if warning has been acknowledged
+            if (!localStorage.getItem('warning_acknowledged')) {
+                document.getElementById('warning-modal').style.display = 'flex';
+                return;
+            }
+            
+            // Proceed with download if warning was acknowledged
+            await performDownload();
+        });
+        
+        // Warning acknowledgment
+        document.getElementById('warning-acknowledge').addEventListener('click', async () => {
+            localStorage.setItem('warning_acknowledged', 'true');
+            document.getElementById('warning-modal').style.display = 'none';
+            await performDownload();
+        });
+        
+        async function performDownload() {
             const urlInput = document.getElementById('url-input');
             const loader = document.getElementById('loader');
             const responseElement = document.getElementById('response');
@@ -405,7 +507,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 loader.style.display = 'none';
                 showResponse(`Error: ${error.message}`, true);
             }
-        });
+        }
         
         function showResponse(text, isError) {
             const responseElement = document.getElementById('response');

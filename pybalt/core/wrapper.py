@@ -15,6 +15,7 @@ from typing import (
 )
 from pathlib import Path
 import logging
+from ipaddress import ip_address
 
 
 logger = logging.getLogger(__name__)
@@ -154,7 +155,20 @@ class Instance:
             self.api_url = f"{info['protocol']}://{info['api']}"
         elif url:
             self.info = {"api": url}
-            self.api_url = url if "://" in url else f"https://{url}"
+            
+            # Check if URL already has a protocol
+            if "://" in url:
+                self.api_url = url
+            else:
+                # Extract host for IP checking
+                host = url.split("/")[0].split(":")[0]  # Remove any path, query or port
+                
+                # Check if host is an IP address
+                try:
+                    ip_address(host)
+                    self.api_url = f"http://{url}"
+                except (ValueError, ImportError):
+                    self.api_url = f"https://{url}"
         else:
             raise ValueError("Either info or url must be provided")
 
@@ -451,7 +465,27 @@ class InstanceManager:
                     close=close,
                 )
                 data = await response.json()
+                
                 if data.get("status", "") == "tunnel":
+                    # Handle URL in response that might be local
+                    if data.get("url", None):
+                        response_url = data.get("url")
+                        # Check if URL is pointing to a local resource
+                        if any(local_pattern in response_url.lower() for local_pattern in ["localhost", "127.0.0.1", "::1"]) or \
+                        any(response_url.lower().startswith(f"http://{pattern}") for pattern in ["192.168.", "10.", "172.16."]):
+                            # Get the instance that responded
+                            instance_url = response.url
+                            print(instance_url)
+                            # Extract the base URL of the instance
+                            instance_base = "/".join(instance_url.split("/")[:3])  # Get protocol and host part
+                            # Only replace if not using a local instance intentionally
+                            if not (self.local_instance and self.local_instance.api_url in instance_url):
+                                # Replace local URL with instance's base URL followed by the path
+                                print(3)
+                                path_part = "/" + "/".join(response_url.split("/")[3:]) if len(response_url.split("/")) > 3 else ""
+                                data["url"] = f"{instance_base}{path_part}"
+                                logger.debug(f"Replaced local URL {response_url} with {data['url']}")
+                    
                     yield CobaltTunnelResponse(**data)
                 elif data.get("status", "") == "redirect":
                     yield CobaltRedirectResponse(**data)

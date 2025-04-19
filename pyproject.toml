@@ -9,7 +9,7 @@ dynamic = ["version"]
 authors = [
     {name = "nichind", email = "nichinddev@gmail.com"},
 ]
-description = "tool/python-module for downloading videos from YouTube, Twitter (X), Instagram, Reddit, Soundcloud and more! Powered by the @imputnet cobalt instances."
+description = "☄️ Your ultimate tool & python module to download videos and audio from various platforms. Supports YouTube, Instagram, Twitter (X), Reddit, TikTok, BiliBili & More! Powered by cobalt instances"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
