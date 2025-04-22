@@ -12,7 +12,8 @@ from typing import (
     Unpack,
     AsyncGenerator,
     Tuple,
-)
+    Set,
+) 
 from pathlib import Path
 import logging
 from ipaddress import ip_address
@@ -38,6 +39,7 @@ class CobaltRequestParams(TypedDict, total=False):
     tiktokH265: bool
     twitterGif: bool
     youtubeHLS: bool
+    ignoredInstances: Optional[List[str]]
 
 
 class CobaltResponse(TypedDict):
@@ -258,6 +260,16 @@ class Instance:
         self.info = await response.json()
         return self.info
 
+    @property
+    def instance_id(self) -> str:
+        """
+        Get a unique identifier for this instance.
+        
+        Returns:
+            A string that uniquely identifies this instance
+        """
+        return self.api_url
+
 
 class InstanceManager:
     def __init__(
@@ -402,15 +414,19 @@ class InstanceManager:
         self.fetched_instances = processed_instances
         return processed_instances
 
-    async def get_instances(self) -> List[Instance]:
+    async def get_instances(self, ignored_instances: Optional[List[str]] = None) -> List[Instance]:
         """
-        Get a list of ALL available Cobalt instances including local, user_instances from the config, fetched instances from the list api and the fallback one.
+        Get a list of ALL available Cobalt instances including local, user_instances from the config, 
+        fetched instances from the list api and the fallback one, excluding any ignored instances.
+
+        Args:
+            ignored_instances: List of instance URLs to ignore
 
         Returns:
             List of Instance objects
         """
-        if not self.fetched_instances:
-            await self.fetch_instances()
+        # if not self.fetched_instances:
+        #     await self.fetch_instances()
 
         self.local_instance = LocalInstance(config=self.config)
         self.user_instances = [
@@ -430,14 +446,24 @@ class InstanceManager:
             client=self.client,
             debug=self.debug,
         )
-        logger.debug(str(self.all_instances))
-        return self.all_instances
+        
+        # Filter out ignored instances if specified
+        all_instances = self.all_instances
+        if ignored_instances:
+            all_instances = [
+                instance for instance in all_instances 
+                if instance.api_url.replace("https://", "").replace("http://", "") not in ignored_instances
+            ]
+            
+        logger.debug(str(all_instances))
+        return all_instances
 
     async def first_tunnel_generator(
         self,
         urls: List[str],
         only_first: bool = False,
         close: bool = True,
+        ignored_instances: Optional[List[str]] = None,
         **params: Unpack[CobaltRequestParams],
     ) -> AsyncGenerator[
         Union[
@@ -448,7 +474,24 @@ class InstanceManager:
         ],
         None,
     ]:
-        instances = await self.get_instances()
+        # Remove ignoredInstances from params if present and merge with directly passed ignored_instances
+        params_ignored = params.pop("ignoredInstances", None) or []
+        all_ignored = list(set(params_ignored + (ignored_instances or [])))
+        
+        # Get instances, filtering out ignored ones
+        instances = await self.get_instances(all_ignored)
+        
+        if not instances:
+            logger.warning("No available instances after filtering out ignored instances")
+            yield CobaltErrorResponse(
+                status="error", 
+                error=CobaltError(
+                    code="NO_INSTANCES_AVAILABLE",
+                    context=None
+                )
+            )
+            return
+            
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
@@ -465,6 +508,13 @@ class InstanceManager:
                     close=close,
                 )
                 data = await response.json()
+                print('\n\n', await response.text())
+                # Add responding instance information to the response
+                responding_instance = response.url.split('/')[2] if response.url else None
+                if responding_instance:
+                    if "instance_info" not in data:
+                        data["instance_info"] = {}
+                    data["instance_info"]["url"] = responding_instance
                 
                 if data.get("status", "") == "tunnel":
                     # Handle URL in response that might be local
@@ -475,13 +525,10 @@ class InstanceManager:
                         any(response_url.lower().startswith(f"http://{pattern}") for pattern in ["192.168.", "10.", "172.16."]):
                             # Get the instance that responded
                             instance_url = response.url
-                            print(instance_url)
                             # Extract the base URL of the instance
                             instance_base = "/".join(instance_url.split("/")[:3])  # Get protocol and host part
                             # Only replace if not using a local instance intentionally
                             if not (self.local_instance and self.local_instance.api_url in instance_url):
-                                # Replace local URL with instance's base URL followed by the path
-                                print(3)
                                 path_part = "/" + "/".join(response_url.split("/")[3:]) if len(response_url.split("/")) > 3 else ""
                                 data["url"] = f"{instance_base}{path_part}"
                                 logger.debug(f"Replaced local URL {response_url} with {data['url']}")
@@ -491,15 +538,15 @@ class InstanceManager:
                     yield CobaltRedirectResponse(**data)
                 elif data.get("status", "") == "picker":
                     yield CobaltPickerResponse(**data)
-                elif data.get("status", "") == "error":
-                    yield CobaltErrorResponse(**data)
+                # elif data.get("status", "") == "error":
+                #     yield CobaltErrorResponse(**data)
                 if only_first:
                     break
             except Exception as e:
                 logger.debug(f"Error processing URL {url}: {e}")
 
     async def first_tunnel(
-        self, url: str, **params: Unpack[CobaltRequestParams]
+        self, url: str, ignored_instances: Optional[List[str]] = None, **params: Unpack[CobaltRequestParams]
     ) -> Union[
         CobaltTunnelResponse,
         CobaltRedirectResponse,
@@ -511,12 +558,13 @@ class InstanceManager:
 
         Args:
             url: URL to process
+            ignored_instances: List of instance URLs to ignore
             params: Request parameters
 
         Returns:
             Response from the first successful instance
         """
-        generator = self.first_tunnel_generator(urls=[url], only_first=True, **params)
+        generator = self.first_tunnel_generator(urls=[url], only_first=True, ignored_instances=ignored_instances, **params)
         async for response in generator:
             return response
 
@@ -524,6 +572,7 @@ class InstanceManager:
         self,
         url: str = None,
         urls: List[str] = None,
+        ignored_instances: Optional[List[str]] = None,
         **params: Unpack[CobaltRequestParams],
     ) -> AsyncGenerator[Tuple[str, Optional[Path], Optional[Exception]], None]:
         """
@@ -532,6 +581,7 @@ class InstanceManager:
         Args:
             url: Single URL to download (alternative to urls)
             urls: Multiple URLs to download
+            ignored_instances: List of instance URLs to ignore
             **params: Parameters for the Cobalt API request
 
         Yields:
@@ -554,7 +604,7 @@ class InstanceManager:
 
         for url in complete_urls:
             try:
-                response = await self.first_tunnel(url, close=False, **params)
+                response = await self.first_tunnel(url, close=False, ignored_instances=ignored_instances, **params)
                 if response.get("status", "") == "error":
                     error = ValueError(f"Error: {response['error']['code']}")
                     yield url, None, error
@@ -582,6 +632,7 @@ class InstanceManager:
         self,
         url: str = None,
         urls: List[str] = None,
+        ignored_instances: Optional[List[str]] = None,
         **params: Unpack[CobaltRequestParams],
     ) -> List[Tuple[str, Optional[Path], Optional[Exception]]]:
         """
@@ -590,6 +641,7 @@ class InstanceManager:
         Args:
             url: Single URL to download (alternative to urls)
             urls: Multiple URLs to download
+            ignored_instances: List of instance URLs to ignore
             **params: Parameters for the Cobalt API request
 
         Returns:
@@ -597,6 +649,6 @@ class InstanceManager:
             If exception is None, the download was successful.
         """
         results = []
-        async for result in self.download_generator(url=url, urls=urls, **params):
+        async for result in self.download_generator(url=url, urls=urls, ignored_instances=ignored_instances, **params):
             results.append(result)
         return results

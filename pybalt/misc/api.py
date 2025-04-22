@@ -24,10 +24,13 @@ async def root(request: Request):
 async def post(request: Request):
     data = await request.json()
     url = data.get("url", None)
+    ignored_instances = data.get("ignoredInstances", [])
+    if ignored_instances != []:
+        del data["ignoredInstances"]
     if url is None:
         return {"error": "URL not provided"}
     del data["url"]
-    return JSONResponse(await manager.first_tunnel(url, **data))
+    return JSONResponse(await manager.first_tunnel(url, ignored_instances=ignored_instances, **data))
 
 
 @app.get("/ui", response_class=HTMLResponse)
@@ -347,6 +350,54 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .modal-button:hover {
             opacity: 0.9;
         }
+        
+        /* Ignored instances styles */
+        .ignored-instances {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            display: none;
+        }
+        
+        .ignored-instances h3 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+        
+        .ignored-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        .ignored-item {
+            display: flex;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .ignored-item button {
+            background: none;
+            border: none;
+            color: var(--error-color);
+            cursor: pointer;
+            padding: 0;
+            margin-left: 0.5rem;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .ignored-item button:hover {
+            transform: none;
+            background: none;
+        }
     </style>
 </head>
 <body>
@@ -378,8 +429,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </svg>
                 <span>Copy Link</span>
             </button>
+            <button class="action-button" id="ignore-instance-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                </svg>
+                <span>Ignore Instance</span>
+            </button>
         </div>
         <div class="response" id="response"></div>
+        
+        <!-- Ignored Instances Section -->
+        <div class="ignored-instances" id="ignored-instances">
+            <h3>Ignored Instances:</h3>
+            <div class="ignored-list" id="ignored-list"></div>
+        </div>
     </div>
     
     <!-- Warning Modal -->
@@ -414,9 +478,86 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="success-notification" id="copy-notification">
         Link copied to clipboard!
     </div>
+    <div class="success-notification" id="ignore-notification">
+        Instance added to ignore list!
+    </div>
 
     <script>
         let currentResponseUrl = null;
+        let currentRespondingInstance = null;
+        let ignoredInstances = [];
+        
+        // Load ignored instances from local storage
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                const saved = localStorage.getItem('ignoredInstances');
+                if (saved) {
+                    ignoredInstances = JSON.parse(saved);
+                    updateIgnoredInstancesUI();
+                }
+            } catch (error) {
+                console.error('Failed to load ignored instances:', error);
+            }
+        });
+        
+        // Function to update the ignored instances UI
+        function updateIgnoredInstancesUI() {
+            const container = document.getElementById('ignored-instances');
+            const list = document.getElementById('ignored-list');
+            
+            // Clear the list
+            list.innerHTML = '';
+            
+            // If we have ignored instances, show the container
+            if (ignoredInstances.length > 0) {
+                container.style.display = 'block';
+                
+                // Add each ignored instance to the list
+                ignoredInstances.forEach(instance => {
+                    const item = document.createElement('div');
+                    item.className = 'ignored-item';
+                    
+                    const text = document.createTextNode(instance);
+                    item.appendChild(text);
+                    
+                    const removeBtn = document.createElement('button');
+                    removeBtn.innerHTML = '×';
+                    removeBtn.title = 'Remove from ignore list';
+                    removeBtn.onclick = () => removeIgnoredInstance(instance);
+                    
+                    item.appendChild(removeBtn);
+                    list.appendChild(item);
+                });
+            } else {
+                container.style.display = 'none';
+            }
+        }
+        
+        // Function to add an instance to the ignored list
+        function addIgnoredInstance(instance) {
+            if (instance && !ignoredInstances.includes(instance)) {
+                ignoredInstances.push(instance);
+                localStorage.setItem('ignoredInstances', JSON.stringify(ignoredInstances));
+                updateIgnoredInstancesUI();
+                
+                // Show notification
+                const notification = document.getElementById('ignore-notification');
+                notification.style.opacity = '1';
+                notification.style.transform = 'translateY(0)';
+                
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    notification.style.transform = 'translateY(20px)';
+                }, 2000);
+            }
+        }
+        
+        // Function to remove an instance from the ignored list
+        function removeIgnoredInstance(instance) {
+            ignoredInstances = ignoredInstances.filter(item => item !== instance);
+            localStorage.setItem('ignoredInstances', JSON.stringify(ignoredInstances));
+            updateIgnoredInstancesUI();
+        }
         
         // Fetch instance count on page load
         document.addEventListener('DOMContentLoaded', async () => {
@@ -464,8 +605,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const actionButtons = document.getElementById('action-buttons');
             const url = urlInput.value.trim();
             
-            // Reset current URL
+            // Reset current values
             currentResponseUrl = null;
+            currentRespondingInstance = null;
             actionButtons.style.display = 'none';
             
             if (!url) {
@@ -483,7 +625,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url })
+                    body: JSON.stringify({ 
+                        url,
+                        ignoredInstances: ignoredInstances 
+                    })
                 });
                 
                 const data = await response.json();
@@ -500,6 +645,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     // Check if response contains a URL
                     if (data.url) {
                         currentResponseUrl = data.url;
+                        
+                        // Store responding instance if available
+                        if (data.instance_info && data.instance_info.url) {
+                            currentRespondingInstance = data.instance_info.url;
+                        }
+                        
                         actionButtons.style.display = 'flex';
                     }
                 }
@@ -539,6 +690,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 } catch (err) {
                     console.error('Failed to copy URL: ', err);
                 }
+            }
+        });
+        
+        // Ignore Instance button
+        document.getElementById('ignore-instance-btn').addEventListener('click', () => {
+            if (currentRespondingInstance) {
+                addIgnoredInstance(currentRespondingInstance);
             }
         });
         

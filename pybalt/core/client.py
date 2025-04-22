@@ -852,11 +852,13 @@ class HttpClient:
 
         # Return the first response from the generator
         async for response in generator:
-            if response.status < 400:
+            if response.status < 400 and response.status > 0:
+                print("==\n\n", response.__dict__, '\n\n==')
                 return response
             # Store the first error response to return if all fail
             first_error = response
 
+        logger.debug(f"All requests failed, returning first error: {first_error}")
         # If we got here, no successful responses were found, return the first error
         return first_error
 
