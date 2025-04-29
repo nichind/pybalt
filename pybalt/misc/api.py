@@ -35,7 +35,7 @@ async def post(request: Request):
 
 @app.get("/ui", response_class=HTMLResponse)
 async def webui():
-    """Serve the web UI for pybalt."""
+    """Serve the web UI for pybalt api."""
     return HTML_TEMPLATE
 
 
