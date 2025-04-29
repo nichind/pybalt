@@ -464,6 +464,7 @@ class InstanceManager:
         only_first: bool = False,
         close: bool = True,
         ignored_instances: Optional[List[str]] = None,
+        force_instance_origin: bool = True,
         **params: Unpack[CobaltRequestParams],
     ) -> AsyncGenerator[
         Union[
@@ -508,7 +509,6 @@ class InstanceManager:
                     close=close,
                 )
                 data = await response.json()
-                print('\n\n', await response.text())
                 # Add responding instance information to the response
                 responding_instance = response.url.split('/')[2] if response.url else None
                 if responding_instance:
@@ -521,8 +521,10 @@ class InstanceManager:
                     if data.get("url", None):
                         response_url = data.get("url")
                         # Check if URL is pointing to a local resource
-                        if any(local_pattern in response_url.lower() for local_pattern in ["localhost", "127.0.0.1", "::1"]) or \
-                        any(response_url.lower().startswith(f"http://{pattern}") for pattern in ["192.168.", "10.", "172.16."]):
+                        if force_instance_origin or (
+                            any(local_pattern in response_url.lower() for local_pattern in ["localhost", "127.0.0.1", "::1"]) or 
+                            any(response_url.lower().startswith(f"http://{pattern}") for pattern in ["192.168.", "10.", "172.16."])
+                        ):
                             # Get the instance that responded
                             instance_url = response.url
                             # Extract the base URL of the instance

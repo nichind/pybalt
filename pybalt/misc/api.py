@@ -398,6 +398,152 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             transform: none;
             background: none;
         }
+        
+        /* Settings panel styles */
+        .settings-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            gap: 0.5rem;
+            cursor: pointer;
+            user-select: none;
+            color: rgba(255, 255, 255, 0.7);
+            transition: all 0.2s ease;
+        }
+        
+        .settings-toggle:hover {
+            color: var(--text-color);
+        }
+
+        .settings-toggle svg {
+            width: 18px;
+            height: 18px;
+            transition: transform 0.3s ease;
+        }
+        
+        .settings-toggle.active svg {
+            transform: rotate(180deg);
+        }
+        
+        .settings-panel {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            display: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .settings-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .settings-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .settings-group h3 {
+            margin-bottom: 0.8rem;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--accent-color);
+        }
+        
+        .settings-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .settings-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .setting-item {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .setting-item label {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .setting-item select {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border: none;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-color);
+            font-size: 0.9rem;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.8rem center;
+            background-size: 1rem;
+            outline: none;
+        }
+        
+        .setting-item input[type="text"] {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border: none;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-color);
+            font-size: 0.9rem;
+            outline: none;
+        }
+        
+        .setting-item input[type="checkbox"] {
+            margin-right: 0.5rem;
+            width: auto;
+            height: auto;
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .settings-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1rem;
+        }
+        
+        .settings-button {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .settings-button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .settings-button.save {
+            background-color: var(--accent-color);
+        }
+        
+        .settings-button.save:hover {
+            background-color: #2a75ff;
+        }
+        
+        .settings-button.reset {
+            background-color: var(--error-color);
+        }
+        
+        .settings-button.reset:hover {
+            background-color: #e33e3e;
+        }
     </style>
 </head>
 <body>
@@ -412,6 +558,165 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             >
             <button id="download-btn">Download</button>
         </div>
+        
+        <!-- Settings Toggle -->
+        <div class="settings-toggle" id="settings-toggle">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            <span>Advanced Settings</span>
+        </div>
+        
+        <!-- Settings Panel -->
+        <div class="settings-panel" id="settings-panel">
+            <div class="settings-group">
+                <h3>Video Settings</h3>
+                <div class="settings-row">
+                    <div class="setting-item">
+                        <label for="video-quality">Video Quality</label>
+                        <select id="video-quality">
+                            <option value="">Auto (Default)</option>
+                            <option value="144">144p</option>
+                            <option value="240">240p</option>
+                            <option value="360">360p</option>
+                            <option value="480">480p</option>
+                            <option value="720">720p</option>
+                            <option value="1080">1080p</option>
+                            <option value="1440">1440p</option>
+                            <option value="2160">2160p (4K)</option>
+                            <option value="4320">4320p (8K)</option>
+                            <option value="max">Maximum</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="download-mode">Download Mode</label>
+                        <select id="download-mode">
+                            <option value="">Auto (Default)</option>
+                            <option value="audio">Audio Only</option>
+                            <option value="mute">Video Without Audio</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-group">
+                <h3>Audio Settings</h3>
+                <div class="settings-row">
+                    <div class="setting-item">
+                        <label for="audio-format">Audio Format</label>
+                        <select id="audio-format">
+                            <option value="">Best (Default)</option>
+                            <option value="mp3">MP3</option>
+                            <option value="ogg">OGG</option>
+                            <option value="wav">WAV</option>
+                            <option value="opus">Opus</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="audio-bitrate">Audio Bitrate</label>
+                        <select id="audio-bitrate">
+                            <option value="">Auto (Default)</option>
+                            <option value="320">320 kbps</option>
+                            <option value="256">256 kbps</option>
+                            <option value="128">128 kbps</option>
+                            <option value="96">96 kbps</option>
+                            <option value="64">64 kbps</option>
+                            <option value="8">8 kbps</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-group">
+                <h3>YouTube Specific</h3>
+                <div class="settings-row">
+                    <div class="setting-item">
+                        <label for="youtube-video-codec">Video Codec</label>
+                        <select id="youtube-video-codec">
+                            <option value="">Default (h264)</option>
+                            <option value="h264">H.264</option>
+                            <option value="av1">AV1</option>
+                            <option value="vp9">VP9</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="youtube-dub-lang">Dubbed Language</label>
+                        <input type="text" id="youtube-dub-lang" placeholder="e.g. en, fr, de (optional)">
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="setting-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="youtube-hls">
+                            <span>Use HLS</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-group">
+                <h3>TikTok & Twitter Settings</h3>
+                <div class="settings-row">
+                    <div class="setting-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="tiktok-full-audio">
+                            <span>TikTok Full Audio</span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="tiktok-h265">
+                            <span>TikTok H.265</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="setting-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="twitter-gif">
+                            <span>Twitter Download as GIF</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-group">
+                <h3>General Options</h3>
+                <div class="settings-row">
+                    <div class="setting-item">
+                        <label for="filename-style">Filename Style</label>
+                        <select id="filename-style">
+                            <option value="">Default</option>
+                            <option value="classic">Classic</option>
+                            <option value="pretty">Pretty</option>
+                            <option value="basic">Basic</option>
+                            <option value="nerdy">Nerdy</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="setting-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="always-proxy">
+                            <span>Always Use Proxy</span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="disable-metadata">
+                            <span>Disable Metadata</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-actions">
+                <button class="settings-button reset" id="reset-settings">Reset to Defaults</button>
+                <button class="settings-button save" id="save-settings">Save Settings</button>
+            </div>
+        </div>
+        
         <div class="loader" id="loader"></div>
         <div class="action-buttons" id="action-buttons">
             <button class="action-button" id="download-url-btn">
@@ -481,13 +786,36 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="success-notification" id="ignore-notification">
         Instance added to ignore list!
     </div>
+    <div class="success-notification" id="settings-notification">
+        Settings saved!
+    </div>
 
     <script>
         let currentResponseUrl = null;
         let currentRespondingInstance = null;
         let ignoredInstances = [];
         
-        // Load ignored instances from local storage
+        // Default settings values
+        const defaultSettings = {
+            videoQuality: "",
+            audioFormat: "",
+            audioBitrate: "",
+            filenameStyle: "",
+            downloadMode: "",
+            youtubeVideoCodec: "",
+            youtubeDubLang: "",
+            alwaysProxy: false,
+            disableMetadata: false,
+            tiktokFullAudio: false,
+            tiktokH265: false,
+            twitterGif: false,
+            youtubeHLS: false
+        };
+        
+        // Current settings
+        let currentSettings = {...defaultSettings};
+        
+        // Load ignored instances and settings from local storage
         document.addEventListener('DOMContentLoaded', () => {
             try {
                 const saved = localStorage.getItem('ignoredInstances');
@@ -495,10 +823,87 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     ignoredInstances = JSON.parse(saved);
                     updateIgnoredInstancesUI();
                 }
+                
+                // Load saved settings
+                const savedSettings = localStorage.getItem('cobaltSettings');
+                if (savedSettings) {
+                    currentSettings = {...defaultSettings, ...JSON.parse(savedSettings)};
+                    applySettingsToUI();
+                }
             } catch (error) {
-                console.error('Failed to load ignored instances:', error);
+                console.error('Failed to load saved data:', error);
             }
+            
+            // Initialize settings toggle
+            document.getElementById('settings-toggle').addEventListener('click', function() {
+                const panel = document.getElementById('settings-panel');
+                const isVisible = panel.style.display === 'block';
+                
+                panel.style.display = isVisible ? 'none' : 'block';
+                this.classList.toggle('active', !isVisible);
+            });
+            
+            // Initialize settings buttons
+            document.getElementById('save-settings').addEventListener('click', saveSettings);
+            document.getElementById('reset-settings').addEventListener('click', resetSettings);
         });
+        
+        // Function to save settings
+        function saveSettings() {
+            // Gather settings from UI
+            currentSettings = {
+                videoQuality: document.getElementById('video-quality').value,
+                audioFormat: document.getElementById('audio-format').value,
+                audioBitrate: document.getElementById('audio-bitrate').value,
+                filenameStyle: document.getElementById('filename-style').value,
+                downloadMode: document.getElementById('download-mode').value,
+                youtubeVideoCodec: document.getElementById('youtube-video-codec').value,
+                youtubeDubLang: document.getElementById('youtube-dub-lang').value,
+                alwaysProxy: document.getElementById('always-proxy').checked,
+                disableMetadata: document.getElementById('disable-metadata').checked,
+                tiktokFullAudio: document.getElementById('tiktok-full-audio').checked,
+                tiktokH265: document.getElementById('tiktok-h265').checked,
+                twitterGif: document.getElementById('twitter-gif').checked,
+                youtubeHLS: document.getElementById('youtube-hls').checked
+            };
+            
+            // Save to localStorage
+            localStorage.setItem('cobaltSettings', JSON.stringify(currentSettings));
+            
+            // Show notification
+            const notification = document.getElementById('settings-notification');
+            notification.style.opacity = '1';
+            notification.style.transform = 'translateY(0)';
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateY(20px)';
+            }, 2000);
+        }
+        
+        // Function to reset settings to defaults
+        function resetSettings() {
+            currentSettings = {...defaultSettings};
+            applySettingsToUI();
+            localStorage.removeItem('cobaltSettings');
+        }
+        
+        // Function to apply current settings to UI elements
+        function applySettingsToUI() {
+            document.getElementById('video-quality').value = currentSettings.videoQuality;
+            document.getElementById('audio-format').value = currentSettings.audioFormat;
+            document.getElementById('audio-bitrate').value = currentSettings.audioBitrate;
+            document.getElementById('filename-style').value = currentSettings.filenameStyle;
+            document.getElementById('download-mode').value = currentSettings.downloadMode;
+            document.getElementById('youtube-video-codec').value = currentSettings.youtubeVideoCodec;
+            document.getElementById('youtube-dub-lang').value = currentSettings.youtubeDubLang;
+            document.getElementById('always-proxy').checked = currentSettings.alwaysProxy;
+            document.getElementById('disable-metadata').checked = currentSettings.disableMetadata;
+            document.getElementById('tiktok-full-audio').checked = currentSettings.tiktokFullAudio;
+            document.getElementById('tiktok-h265').checked = currentSettings.tiktokH265;
+            document.getElementById('twitter-gif').checked = currentSettings.twitterGif;
+            document.getElementById('youtube-hls').checked = currentSettings.youtubeHLS;
+        }
         
         // Function to update the ignored instances UI
         function updateIgnoredInstancesUI() {
@@ -628,6 +1033,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     body: JSON.stringify({ 
                         url,
                         ignoredInstances: ignoredInstances 
+                        ,
+                        // Add settings from localStorage if they exist
+                        ...(currentSettings.videoQuality ? { videoQuality: currentSettings.videoQuality } : {}),
+                        ...(currentSettings.audioFormat ? { audioFormat: currentSettings.audioFormat } : {}),
+                        ...(currentSettings.audioBitrate ? { audioBitrate: currentSettings.audioBitrate } : {}),
+                        ...(currentSettings.filenameStyle ? { filenameStyle: currentSettings.filenameStyle } : {}),
+                        ...(currentSettings.downloadMode ? { downloadMode: currentSettings.downloadMode } : {}),
+                        ...(currentSettings.youtubeVideoCodec ? { youtubeVideoCodec: currentSettings.youtubeVideoCodec } : {}),
+                        ...(currentSettings.youtubeDubLang ? { youtubeDubLang: currentSettings.youtubeDubLang } : {}),
+                        ...(currentSettings.alwaysProxy ? { alwaysProxy: true } : {}),
+                        ...(currentSettings.disableMetadata ? { disableMetadata: true } : {}),
+                        ...(currentSettings.tiktokFullAudio ? { tiktokFullAudio: true } : {}),
+                        ...(currentSettings.tiktokH265 ? { tiktokH265: true } : {}),
+                        ...(currentSettings.twitterGif ? { twitterGif: true } : {}),
+                        ...(currentSettings.youtubeHLS ? { youtubeHLS: true } : {})
                     })
                 });
                 
