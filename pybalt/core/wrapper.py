@@ -1,7 +1,8 @@
 from .config import Config
 from .client import HttpClient
 from .local import LocalInstance
-from .remux import remux
+from .remux import Remuxer
+from .logging_utils import get_logger
 from typing import (
     TypedDict,
     Optional,
@@ -19,7 +20,7 @@ import logging
 from ipaddress import ip_address
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CobaltRequestParams(TypedDict, total=False):
@@ -281,18 +282,9 @@ class InstanceManager:
         self.config = config or Config()
         self.debug = debug or self.config.get("debug", False, "general")
         if self.debug:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.setLevel(logging.DEBUG)
-
-            # Create console handler if not already present
-            if not logger.handlers:
-                console_handler = logging.StreamHandler()
-                console_handler.setLevel(logging.DEBUG)
-                formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-                console_handler.setFormatter(formatter)
-                logger.addHandler(console_handler)
+            global logger
+            logger = get_logger(__name__, debug=True)
+            
         self.client = client
         self.local_instance = LocalInstance(config=self.config)
         self.user_instances = [
@@ -576,6 +568,9 @@ class InstanceManager:
         urls: List[str] = None,
         ignored_instances: Optional[List[str]] = None,
         only_path: bool = True,
+        remux: bool = False,
+        min_file_size: int = 1024,  # Default 1KB minimum size
+        max_retries: int = 3,       # Prevent infinite retry loops
         **params: Unpack[CobaltRequestParams],
     ) -> AsyncGenerator[Path | Tuple[str, Optional[Path], Optional[Exception]], None]:
         """
@@ -586,6 +581,9 @@ class InstanceManager:
             urls: Multiple URLs to download
             ignored_instances: List of instance URLs to ignore
             only_path: If True, yield only the file path instead of the full result tuple
+            remux: If True, remux the downloaded file
+            min_file_size: Minimum acceptable file size in bytes (files smaller than this are considered "ghost files")
+            max_retries: Maximum number of retry attempts for ghost files
             **params: Parameters for the Cobalt API request
 
         Yields:
@@ -606,31 +604,79 @@ class InstanceManager:
         for url in urls:
             complete_urls += self.client.detect_playlist(url=url)
 
-        for url in complete_urls:
-            try:
-                response = await self.first_tunnel(url, close=False, ignored_instances=ignored_instances, **params)
-                if response.get("status", "") == "error":
-                    error = ValueError(f"Error: {response['error']['code']}")
-                    yield None if only_path else (url, None, error)
-                    continue
+        # Make a copy of the ignored_instances list to avoid modifying the original
+        current_ignored_instances = list(ignored_instances or [])
 
-                if response.get("status", "") == "tunnel" or response.get("status", "") == "redirect":
-                    download_url = response.get("url")
-                    filename = response.get("filename")
-                    file_path = await self.client.download_file(
-                        url=download_url,
-                        filename=filename,
-                        timeout=self.config.get("download_timeout", 60),
-                        progressive_timeout=True,
-                    )
-                    yield file_path if only_path else (url, file_path, None)
-                else:
-                    # Handle picker responses or other status types
-                    error = ValueError(f"Unsupported response status: {response.get('status')}")
-                    yield None if only_path else (url, None, error)
-            except Exception as e:
-                logger.debug(f"Error processing URL {url}: {e}")
-                yield None if only_path else (url, None, e)
+        for url in complete_urls:
+            retry_count = 0
+            while retry_count <= max_retries:
+                try:
+                    response = await self.first_tunnel(url, close=False, ignored_instances=current_ignored_instances, **params)
+                    if response.get("status", "") == "error":
+                        error = ValueError(f"Error: {response['error']['code']}")
+                        yield None if only_path else (url, None, error)
+                        break
+
+                    if response.get("status", "") == "tunnel" or response.get("status", "") == "redirect":
+                        download_url = response.get("url")
+                        filename = response.get("filename")
+                        
+                        # Get the instance that responded
+                        responding_instance = response.get("instance_info", {}).get("url")
+                        
+                        file_path = await self.client.download_file(
+                            url=download_url,
+                            filename=filename,
+                            timeout=self.config.get("download_timeout", 60),
+                            progressive_timeout=True,
+                        )
+                        
+                        # Check if file is a "ghost file" (too small)
+                        if file_path and file_path.exists():
+                            file_size = file_path.stat().st_size
+                            if file_size < min_file_size:
+                                logger.warning(f"Ghost file detected from {responding_instance}: {file_path} ({file_size} bytes)")
+                                
+                                # Add responding instance to ignored list for retry
+                                if responding_instance and responding_instance not in current_ignored_instances:
+                                    current_ignored_instances.append(responding_instance)
+                                
+                                # Delete the ghost file
+                                try:
+                                    file_path.unlink()
+                                except Exception as e:
+                                    logger.debug(f"Failed to delete ghost file {file_path}: {e}")
+                                
+                                # Retry if we haven't exceeded max retries
+                                retry_count += 1
+                                if retry_count <= max_retries:
+                                    logger.debug(f"Retrying download for {url}, attempt {retry_count}/{max_retries}, ignored: {current_ignored_instances}")
+                                    continue
+                                else:
+                                    logger.warning(f"Max retries reached for {url}")
+                                    yield None if only_path else (url, None, ValueError("Ghost file detected and max retries reached"))
+                                    break
+                        
+                        # Apply remuxing if requested
+                        if remux and file_path:
+                            try:
+                                remuxed_file_path = await Remuxer.remux(file_path)
+                                if remuxed_file_path:
+                                    file_path = remuxed_file_path
+                            except Exception as e:
+                                logger.debug(f"Error remuxing file {file_path}: {e}")
+                        
+                        yield file_path if only_path else (url, file_path, None)
+                        break
+                    else:
+                        # Handle picker responses or other status types
+                        error = ValueError(f"Unsupported response status: {response.get('status')}")
+                        yield None if only_path else (url, None, error)
+                        break
+                except Exception as e:
+                    logger.debug(f"Error processing URL {url}: {e}")
+                    yield None if only_path else (url, None, e)
+                    break
 
     async def download(
         self,
@@ -638,6 +684,7 @@ class InstanceManager:
         urls: List[str] = None,
         ignored_instances: Optional[List[str]] = None,
         only_path: bool = True,
+        remux: bool = False,
         **params: Unpack[CobaltRequestParams],
     ) -> Path | List[Path] | Tuple[str, Optional[Path], Optional[Exception]] | List[Tuple[str, Optional[Path], Optional[Exception]]]:
         """
@@ -647,15 +694,30 @@ class InstanceManager:
             url: Single URL to download (alternative to urls)
             urls: Multiple URLs to download
             ignored_instances: List of instance URLs to ignore
+            only_path: If True, yield only the file path instead of the full result tuple
+            remux: If True, remux the downloaded file
+            **params: Parameters for the Cobalt API request
+            
         Returns:
             List of tuples containing (url, file_path, exception) for each download.
             If exception is None, the download was successful.
         """
         results = []
-        async for result in self.download_generator(url=url, urls=urls, ignored_instances=ignored_instances, **params):
+        async for result in self.download_generator(
+            url=url, 
+            urls=urls, 
+            ignored_instances=ignored_instances, 
+            only_path=only_path,
+            remux=remux, 
+            **params
+        ):
             results.append(result)
         if only_path:
             for i, result in enumerate(results):
-                if len(result) > 1:
+                if isinstance(result, tuple) and len(result) > 1:
                     results[i] = result[1]
+        if not results:
+            return None
+        if not isinstance(result, list):
+            return result
         return results if len(result) > 1 else results[0]

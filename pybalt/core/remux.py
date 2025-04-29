@@ -3,9 +3,9 @@ from time import time, sleep
 from .config import Config
 from subprocess import Popen
 import os
-import logging
+from .logging_utils import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Remuxer:
@@ -13,15 +13,8 @@ class Remuxer:
         self.config = config if config else Config()
         self.debug = debug if debug else self.config.get("debug", False, "general")
         if self.debug:
-            logger.setLevel(logging.DEBUG)
-
-            # Create console handler if not already present
-            if not logger.handlers:
-                console_handler = logging.StreamHandler()
-                console_handler.setLevel(logging.DEBUG)
-                formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-                console_handler.setFormatter(formatter)
-                logger.addHandler(console_handler)
+            global logger
+            logger = get_logger(__name__, debug=True)
 
     def remux(self, path: Path | str, keep_original: bool = None) -> Path:
         if isinstance(path, str):
