@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 import os
 
 from pybalt import download
@@ -10,8 +9,12 @@ YOUTUBE_TEST_TITLE = "【Ado】ヒバナ 歌いました"
 @pytest.mark.asyncio
 async def test_download_youtube():
     # Download the video
-    downloaded = (await download(YOUTUBE_TEST_LINK, filenameStyle="basic", videoQuality="1080"))[0]
+    downloaded = (await download(YOUTUBE_TEST_LINK, filenameStyle="basic", videoQuality="1080", only_path=False))[0]
     path = downloaded[1]
+    
+    if downloaded[2] is not None:
+        # The exception is not None, report
+        raise Exception(f"File {path} was not downloaded correctly: {downloaded[2]}")
     
     # Check if the file exists
     assert os.path.exists(path), f"File {path} does not exist"

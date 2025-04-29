@@ -575,8 +575,9 @@ class InstanceManager:
         url: str = None,
         urls: List[str] = None,
         ignored_instances: Optional[List[str]] = None,
+        only_path: bool = True,
         **params: Unpack[CobaltRequestParams],
-    ) -> AsyncGenerator[Tuple[str, Optional[Path], Optional[Exception]], None]:
+    ) -> AsyncGenerator[Path | Tuple[str, Optional[Path], Optional[Exception]], None]:
         """
         Download multiple files from Cobalt, yielding results as they complete.
 
@@ -584,6 +585,7 @@ class InstanceManager:
             url: Single URL to download (alternative to urls)
             urls: Multiple URLs to download
             ignored_instances: List of instance URLs to ignore
+            only_path: If True, yield only the file path instead of the full result tuple
             **params: Parameters for the Cobalt API request
 
         Yields:
@@ -609,7 +611,7 @@ class InstanceManager:
                 response = await self.first_tunnel(url, close=False, ignored_instances=ignored_instances, **params)
                 if response.get("status", "") == "error":
                     error = ValueError(f"Error: {response['error']['code']}")
-                    yield url, None, error
+                    yield None if only_path else (url, None, error)
                     continue
 
                 if response.get("status", "") == "tunnel" or response.get("status", "") == "redirect":
@@ -621,22 +623,23 @@ class InstanceManager:
                         timeout=self.config.get("download_timeout", 60),
                         progressive_timeout=True,
                     )
-                    yield url, file_path, None
+                    yield file_path if only_path else (url, file_path, None)
                 else:
                     # Handle picker responses or other status types
                     error = ValueError(f"Unsupported response status: {response.get('status')}")
-                    yield url, None, error
+                    yield None if only_path else (url, None, error)
             except Exception as e:
                 logger.debug(f"Error processing URL {url}: {e}")
-                yield url, None, e
+                yield None if only_path else (url, None, e)
 
     async def download(
         self,
         url: str = None,
         urls: List[str] = None,
         ignored_instances: Optional[List[str]] = None,
+        only_path: bool = True,
         **params: Unpack[CobaltRequestParams],
-    ) -> List[Tuple[str, Optional[Path], Optional[Exception]]]:
+    ) -> Path | List[Path] | Tuple[str, Optional[Path], Optional[Exception]] | List[Tuple[str, Optional[Path], Optional[Exception]]]:
         """
         Download one or more files from Cobalt and return the results.
 
@@ -644,8 +647,6 @@ class InstanceManager:
             url: Single URL to download (alternative to urls)
             urls: Multiple URLs to download
             ignored_instances: List of instance URLs to ignore
-            **params: Parameters for the Cobalt API request
-
         Returns:
             List of tuples containing (url, file_path, exception) for each download.
             If exception is None, the download was successful.
@@ -653,4 +654,8 @@ class InstanceManager:
         results = []
         async for result in self.download_generator(url=url, urls=urls, ignored_instances=ignored_instances, **params):
             results.append(result)
-        return results
+        if only_path:
+            for i, result in enumerate(results):
+                if len(result) > 1:
+                    results[i] = result[1]
+        return results if len(result) > 1 else results[0]
