@@ -9,8 +9,13 @@ from .core import (
     download,
     remuxer,
 )
+from .misc.tracker import tracker
+from .misc.tracker import get_tracker
 
-VERSION = "2025.4.3"
+VERSION = "2025.5.1"
+
+# Initialize tracker
+tracker = get_tracker()
 
 __all__ = [
     VERSION,
@@ -23,4 +28,5 @@ __all__ = [
     download,
     remuxer,
     remux,
+    tracker,
 ]

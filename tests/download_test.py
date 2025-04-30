@@ -9,7 +9,7 @@ YOUTUBE_TEST_TITLE = "【Ado】ヒバナ 歌いました"
 @pytest.mark.asyncio
 async def test_download_youtube():
     # Download the video
-    downloaded = (await download(YOUTUBE_TEST_LINK, filenameStyle="basic", videoQuality="1080", only_path=False))[0]
+    downloaded = (await download(YOUTUBE_TEST_LINK, filenameStyle="basic", videoQuality="1080", only_path=False, remux=False))
     path = downloaded[1]
     
     if downloaded[2] is not None:

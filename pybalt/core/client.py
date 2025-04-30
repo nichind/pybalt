@@ -27,9 +27,12 @@ from urllib.parse import urlparse
 from .config import Config
 import asyncio
 from .logging_utils import get_logger
+from ..misc.tracker import get_tracker
+import uuid
 
 
 logger = get_logger(__name__)
+tracker = get_tracker()
 
 
 class Response:
@@ -174,22 +177,21 @@ class HttpClient:
         # Detect system proxy if auto-detect is enabled and no proxy is provided
         if auto_detect_proxy and not self.proxy:
             self.proxy = self._detect_system_proxy()
+            
+        # Set logger to debug level if debug is enabled
+        logger.setLevel(logging.DEBUG)
 
-        if self.debug:
-            # Set logger to debug level if debug is enabled
-            logger.setLevel(logging.DEBUG)
+        # Create console handler if not already present
+        if not logger.handlers:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+            console_handler.setFormatter(formatter)
+            logger.addHandler(console_handler)
 
-            # Create console handler if not already present
-            if not logger.handlers:
-                console_handler = logging.StreamHandler()
-                console_handler.setLevel(logging.DEBUG)
-                formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-                console_handler.setFormatter(formatter)
-                logger.addHandler(console_handler)
-
-            logger.debug(f"Initialized HttpClient with base_url={base_url}, proxy={self.proxy}, verify_proxy={verify_proxy}")
-            if self.proxy:
-                logger.debug(f"Using proxy: {self.proxy}")
+        logger.debug(f"Initialized HttpClient with base_url={base_url}, proxy={self.proxy}, verify_proxy={verify_proxy}")
+        if self.proxy:
+            logger.debug(f"Using proxy: {self.proxy}")
 
     def _detect_system_proxy(self) -> Optional[str]:
         """Detect system proxy settings including Hiddify, Outline, or environment variables."""
@@ -206,8 +208,7 @@ class HttpClient:
         ]:
             if env_var in environ and environ[env_var]:
                 detected_proxy = environ[env_var]
-                if self.debug:
-                    logger.debug(f"Detected proxy from environment variable {env_var}: {detected_proxy}")
+                logger.debug(f"Detected proxy from environment variable {env_var}: {detected_proxy}")
                 break
 
         if detected_proxy:
@@ -238,12 +239,10 @@ class HttpClient:
 
             if proxy_enabled:
                 proxy_server = winreg.QueryValueEx(key, "ProxyServer")[0]
-                if self.debug:
-                    logger.debug(f"Detected Windows system proxy: {proxy_server}")
+                logger.debug(f"Detected Windows system proxy: {proxy_server}")
                 return self._normalize_proxy_url(proxy_server)
         except Exception as e:
-            if self.debug:
-                logger.debug(f"Error detecting Windows proxy: {str(e)}")
+            logger.debug(f"Error detecting Windows proxy: {str(e)}")
 
         return None
 
@@ -267,12 +266,10 @@ class HttpClient:
                     server = server_match.group(1).strip()
                     port = port_match.group(1).strip()
                     proxy_url = f"http://{server}:{port}"
-                    if self.debug:
-                        logger.debug(f"Detected macOS system proxy: {proxy_url}")
+                    logger.debug(f"Detected macOS system proxy: {proxy_url}")
                     return proxy_url
         except Exception as e:
-            if self.debug:
-                logger.debug(f"Error detecting macOS proxy: {str(e)}")
+            logger.debug(f"Error detecting macOS proxy: {str(e)}")
 
         return None
 
@@ -305,8 +302,7 @@ class HttpClient:
 
                 if http_host and http_port:
                     proxy_url = f"http://{http_host}:{http_port}"
-                    if self.debug:
-                        logger.debug(f"Detected Linux (GNOME) system proxy: {proxy_url}")
+                    logger.debug(f"Detected Linux (GNOME) system proxy: {proxy_url}")
                     return proxy_url
 
             # Try for KDE
@@ -319,12 +315,10 @@ class HttpClient:
                         if match:
                             host, port = match.groups()
                             proxy_url = f"http://{host}:{port}"
-                            if self.debug:
-                                logger.debug(f"Detected Linux (KDE) system proxy: {proxy_url}")
+                            logger.debug(f"Detected Linux (KDE) system proxy: {proxy_url}")
                             return proxy_url
         except Exception as e:
-            if self.debug:
-                logger.debug(f"Error detecting Linux proxy: {str(e)}")
+            logger.debug(f"Error detecting Linux proxy: {str(e)}")
 
         return None
 
@@ -407,8 +401,7 @@ class HttpClient:
                 explicit_proxy = self._replace_docker_hosts_with_localhost(explicit_proxy)
 
             if self.config.get("bypass_proxy_for_localhost", True, section="network") and self._is_localhost_url(url):
-                if self.debug:
-                    logger.debug(f"Bypassing explicit proxy for localhost URL: {url}")
+                logger.debug(f"Bypassing explicit proxy for localhost URL: {url}")
                 return None
             return explicit_proxy
 
@@ -419,8 +412,7 @@ class HttpClient:
             proxy = self._replace_docker_hosts_with_localhost(proxy)
 
         if self.config.get("bypass_proxy_for_localhost", True, section="network") and self._is_localhost_url(url):
-            if self.debug:
-                logger.debug(f"Bypassing default proxy for localhost URL: {url}")
+            logger.debug(f"Bypassing default proxy for localhost URL: {url}")
             return None
 
         return proxy
@@ -448,12 +440,10 @@ class HttpClient:
                 # Add query parameters if present
                 if parsed.query:
                     new_url += f"?{parsed.query}"
-                if self.debug:
-                    logger.debug(f"Replaced Docker hostname in URL: {url} -> {new_url}")
+                logger.debug(f"Replaced Docker hostname in URL: {url} -> {new_url}")
                 return new_url
         except Exception as e:
-            if self.debug:
-                logger.debug(f"Error replacing Docker hostname in URL: {e}")
+            logger.debug(f"Error replacing Docker hostname in URL: {e}")
 
         return url
 
@@ -504,14 +494,13 @@ class HttpClient:
         request_verify = self.verify_proxy if verify is None else verify
 
         # Debug logging
-        if self.debug:
-            logger.debug(f"Request: {method.upper()} {full_url}")
-            logger.debug(f"Headers: {request_headers}")
-            if params:
-                logger.debug(f"Params: {params}")
-            if data:
-                logger.debug(f"Data: {data}")
-            logger.debug(f"Proxy: {request_proxy}, Verify: {request_verify}, Timeout: {request_timeout.total}s")
+        logger.debug(f"Request: {method.upper()} {full_url}")
+        logger.debug(f"Headers: {request_headers}")
+        if params:
+            logger.debug(f"Params: {params}")
+        if data:
+            logger.debug(f"Data: {data}")
+        logger.debug(f"Proxy: {request_proxy}, Verify: {request_verify}, Timeout: {request_timeout.total}s")
 
         # Create response object
         response_obj = Response()
@@ -551,9 +540,8 @@ class HttpClient:
                     response_obj.headers = dict(response.headers)
 
                     # Debug logging for response
-                    if self.debug:
-                        logger.debug(f"Response: {response.status} ({response_time:.2f}s)")
-                        logger.debug(f"Response headers: {dict(response.headers)}")
+                    logger.debug(f"Response: {response.status} ({response_time:.2f}s)")
+                    logger.debug(f"Response headers: {dict(response.headers)}")
 
                     # Handle rate limiting
                     if response.status == 429:
@@ -585,30 +573,23 @@ class HttpClient:
 
                     try:
                         response_text = await response.text()
-                        response_obj._text = response_text
-                        if self.debug:
-                            logger.debug(f"Response text (preview): {response_text[:200]}...")
+                        response_obj._text = response_text                       
+                        logger.debug(f"Response text (preview): {response_text[:200]}...")
 
                         try:
                             response_obj._json = await response.json()
                         except json.JSONDecodeError:
                             response_obj._json = None
                     except Exception as e:
-                        if self.debug:
-                            logger.debug(f"Failed to parse response as json: {str(e)}")
+                        logger.debug(f"Failed to parse response as json: {str(e)}")
                         response_obj._json = None
             finally:
                 if close:
-                    if self.debug:
-                        logger.debug("Closing session")
+                    logger.debug("Closing session")
                     await session.close()
 
         except Exception as e:
-            if self.debug:
-                logger.debug(f"Request error: {str(e)}")
-            else:
-                logger.error(f"Request error: {str(e)}")
-
+            logger.debug(f"Request error: {str(e)}")
             if retries < max_retries:
                 logger.debug(f"Retrying request ({retries + 1}/{max_retries})")
                 await sleep(self.config.get_as_number("retry_delay", 1.0, section="network"))
@@ -739,8 +720,7 @@ class HttpClient:
         if not urls:
             return
 
-        if self.debug:
-            logger.debug(f"Performing bulk {method.upper()} request to {len(urls)} URLs")
+        logger.debug(f"Performing bulk {method.upper()} request to {len(urls)} URLs")
 
         # Store tasks to ensure proper cancellation
         tasks = []
@@ -784,16 +764,13 @@ class HttpClient:
 
                     # Consider 2xx and 3xx status codes as successful
                     if response.status < 400:
-                        if self.debug:
-                            logger.debug(f"Request to {url} succeeded with status {response.status}")
+                        logger.debug(f"Request to {url} succeeded with status {response.status}")
                         return True, response
                     else:
-                        if self.debug:
-                            logger.debug(f"Request to {url} failed with status {response.status}")
+                        logger.debug(f"Request to {url} failed with status {response.status}")
                         return False, response
                 except Exception as e:
-                    if self.debug:
-                        logger.debug(f"Request to {url} failed with error: {str(e)}")
+                    logger.debug(f"Request to {url} failed with error: {str(e)}")
                     # Create an error response
                     return False, Response(status=0, text=f"Error: {str(e)}")
 
@@ -811,8 +788,7 @@ class HttpClient:
                     break
 
         except Exception as e:
-            if self.debug:
-                logger.debug(f"Bulk request error: {str(e)}")
+            logger.debug(f"Bulk request error: {str(e)}")
             # Yield a generic error response
             yield Response(status=0, text=f"Bulk request error: {str(e)}")
 
@@ -825,8 +801,7 @@ class HttpClient:
             # Don't close the session here if close=False was specified
             if close:
                 if session and not session.closed:
-                    if self.debug:
-                        logger.debug("Closing session after bulk request")
+                    logger.debug("Closing session after bulk request")
                     await session.close()
 
     async def bulk_request(
@@ -938,8 +913,7 @@ class HttpClient:
             file_path = await self.download_file(**download_options)
             return url, file_path, None
         except Exception as e:
-            if self.debug:
-                logger.debug(f"Download failed for {url}: {str(e)}")
+            logger.debug(f"Download failed for {url}: {str(e)}")
             return url, None, e
 
     async def bulk_download_generator(
@@ -980,8 +954,7 @@ class HttpClient:
         if max_concurrent is None:
             max_concurrent = self.config.get_as_number("max_concurrent_downloads", 3, section="network")
 
-        if self.debug:
-            logger.debug(f"Starting bulk download of {len(urls)} files, max_concurrent={max_concurrent}")
+        logger.debug(f"Starting bulk download of {len(urls)} files, max_concurrent={max_concurrent}")
 
         results = []
         active_tasks = set()
@@ -1010,9 +983,8 @@ class HttpClient:
                 # Add callback to remove the task when done
                 task.add_done_callback(active_tasks.discard)
 
-                if self.debug:
-                    url = url_data if isinstance(url_data, str) else url_data.get("url")
-                    logger.debug(f"Added download task for {url}, active tasks: {len(active_tasks)}")
+                url = url_data if isinstance(url_data, str) else url_data.get("url")
+                logger.debug(f"Added download task for {url}, active tasks: {len(active_tasks)}")
 
             # Wait a bit if we have active tasks, otherwise we're done
             if active_tasks:
@@ -1023,15 +995,13 @@ class HttpClient:
                     if task.done():
                         try:
                             url, path, error = task.result()
-                            results.append((url, path, error))
-                            if self.debug:
-                                status = "failed" if error else "completed"
-                                logger.debug(f"Download of {url} {status}")
+                            results.append((url, path, error))                 
+                            status = "failed" if error else "completed"
+                            logger.debug(f"Download of {url} {status}")
                             yield url, path, error
                         except Exception as e:
-                            # This should not happen as exceptions are handled in _download_and_track
-                            if self.debug:
-                                logger.debug(f"Unexpected error in bulk download: {str(e)}")
+                            # This should not happen as exceptions are handled in _download_and_track                       
+                            logger.debug(f"Unexpected error in bulk download: {str(e)}")
 
     async def bulk_download(
         self,
@@ -1087,10 +1057,7 @@ class HttpClient:
 
         # Add name to the task for easier debugging
         bulk_task.set_name(f"BulkDownload_{len(urls)}_files")
-
-        if self.debug:
-            logger.debug(f"Started detached bulk download task for {len(urls)} URLs")
-
+        logger.debug(f"Started detached bulk download task for {len(urls)} URLs")
         return bulk_task
 
     async def download_file(
@@ -1102,6 +1069,9 @@ class HttpClient:
         url = options.get("url")
         if not url:
             raise ValueError("URL is required for downloading files")
+
+        # Generate download ID for tracking
+        download_id = str(uuid.uuid4())
 
         # Get API key and bearer token if provided
         api_key = options.get("api_key")
@@ -1117,17 +1087,15 @@ class HttpClient:
             options["headers"] = request_headers
 
         # Debug logging
-        if self.debug:
-            logger.debug(f"Starting download from: {url}")
-            logger.debug(f"Download options: {options}")
+        logger.debug(f"Starting download from: {url}")
+        logger.debug(f"Download options: {options}")
 
         folder_path = options.get("folder_path", getenv("DOWNLOAD_FOLDER")) or self.config.get(
             "default_downloads_dir", str(Path.home() / "Downloads"), section="paths"
         )
         if not path.exists(folder_path):
             makedirs(folder_path)
-            if self.debug:
-                logger.debug(f"Created download directory: {folder_path}")
+            logger.debug(f"Created download directory: {folder_path}")
 
         # Cache callback options
         status_callback = options.get("status_callback")
@@ -1185,9 +1153,8 @@ class HttpClient:
             # Add proxy if specified
             if request_proxy:
                 download_kwargs["proxy"] = request_proxy
-
-            if self.debug:
-                logger.debug(f"Starting download request with kwargs: {download_kwargs}")
+            
+            logger.debug(f"Starting download request with kwargs: {download_kwargs}")
 
             # Add retry loop for download
             for retry_attempt in range(retry_count + 1):
@@ -1198,18 +1165,16 @@ class HttpClient:
                 try:
                     async with session.get(url, **download_kwargs) as response:
                         if response.status >= 400:
-                            error_msg = f"Failed to download file, status code: {response.status}"
-                            if self.debug:
-                                logger.debug(error_msg)
+                            error_msg = f"Failed to download file, status code: {response.status}"                
+                            logger.debug(error_msg)
 
                             # Only retry on certain error codes
                             if response.status in (429, 500, 502, 503, 504) and retry_attempt < retry_count:
                                 continue
                             raise Exception(error_msg)
 
-                        total_size = int(response.headers.get("Content-Length", -1))
-                        if self.debug:
-                            logger.debug(f"Content-Length: {total_size} bytes")
+                        total_size = int(response.headers.get("Content-Length", -1))                        
+                        logger.debug(f"Content-Length: {total_size} bytes")
 
                         # If progressive timeout is enabled, adjust timeout based on file size
                         if progressive_timeout and total_size > 0:
@@ -1218,8 +1183,7 @@ class HttpClient:
                             size_mb = total_size / (1024 * 1024)
                             adjusted_timeout = min(30 + size_mb, download_timeout * 2)
                             if adjusted_timeout > download_timeout:
-                                if self.debug:
-                                    logger.debug(f"Increasing timeout to {adjusted_timeout}s based on file size ({size_mb:.1f}MB)")
+                                logger.debug(f"Increasing timeout to {adjusted_timeout}s based on file size ({size_mb:.1f}MB)")
                                 # Create a new timeout and update the request
                                 request_timeout = ClientTimeout(total=adjusted_timeout)
                                 download_kwargs["timeout"] = request_timeout
@@ -1234,18 +1198,19 @@ class HttpClient:
                                 filename = url.split("/")[-1].split("?")[0]
 
                         file_path = path.join(folder_path, filename)
-                        if self.debug:
-                            logger.debug(f"Downloading to: {file_path}")
+                        logger.debug(f"Downloading to: {file_path}")
+
+                        # Add download to tracker - ensure tracker is initialized
+                        if tracker.enabled:
+                            tracker.add_download(download_id, url, filename)
+                            tracker.update_download(download_id, total_size=total_size, file_path=file_path)
 
                         # Download the file with optimized buffer handling
                         buffer_size = self.config.get_as_number("download_buffer_size", 1024 * 1024, "network")
-                        if self.debug:
-                            logger.debug(f"Using buffer size: {buffer_size / 1024:.0f}KB")
+                        logger.debug(f"Using buffer size: {buffer_size / 1024:.0f}KB")
 
                         async with aopen(file_path, "wb") as f:
-                            if self.debug:
-                                logger.debug("Download started")
-
+                            logger.debug("Download started")
                             while True:
                                 try:
                                     # Use read() with a timeout to prevent hanging
@@ -1255,14 +1220,16 @@ class HttpClient:
                                     )
 
                                     if not chunk:
-                                        if self.debug:
-                                            logger.debug("End of stream reached")
+                                        logger.debug("End of stream reached")
                                         break
 
                                     # Write chunk to file
                                     await f.write(chunk)
                                     chunk_size = len(chunk)
                                     downloaded_size += chunk_size
+                                    
+                                    # Update download tracker
+                                    tracker.update_download(download_id, downloaded_size=downloaded_size)
 
                                     # Update progress if needed (reduce time() calls)
                                     current_time = time()
@@ -1281,13 +1248,12 @@ class HttpClient:
                                         time_passed = current_time - start_time
 
                                         # Debug logging for download progress
-                                        if self.debug:
-                                            percent = (downloaded_size / total_size * 100) if total_size > 0 else 0
-                                            logger.debug(
-                                                f"Downloaded: {downloaded_size / 1024 / 1024:.2f}MB / "
-                                                f"{total_size / 1024 / 1024:.2f}MB ({percent:.1f}%) at "
-                                                f"{download_speed / 1024 / 1024:.2f}MB/s, ETA: {eta:.0f}s"
-                                            )
+                                        percent = (downloaded_size / total_size * 100) if total_size > 0 else 0
+                                        logger.debug(
+                                            f"Downloaded: {downloaded_size / 1024 / 1024:.2f}MB / "
+                                            f"{total_size / 1024 / 1024:.2f}MB ({percent:.1f}%) at "
+                                            f"{download_speed / 1024 / 1024:.2f}MB/s, ETA: {eta:.0f}s"
+                                        )
 
                                         # Create progress data once (avoid repeated dict creation)
                                         progress_data = {
@@ -1301,6 +1267,14 @@ class HttpClient:
                                             "iteration": iteration,
                                             "eta": round(eta),
                                         }
+                                        
+                                        # Update tracker with download speed and ETA
+                                        if tracker.enabled:
+                                            tracker.update_download(
+                                                download_id, 
+                                                speed=download_speed,
+                                                eta=eta if eta else 0,
+                                            )
 
                                         # Process callbacks and status updates
                                         await self._process_download_callbacks(
@@ -1317,26 +1291,22 @@ class HttpClient:
                                     # Limit download speed if requested
                                     if max_speed and download_speed > max_speed:
                                         sleep_time = chunk_size / max_speed
-                                        if self.debug:
-                                            logger.debug(f"Rate limiting: sleeping for {sleep_time:.2f}s")
+                                        logger.debug(f"Rate limiting: sleeping for {sleep_time:.2f}s")
                                         await sleep(sleep_time)
 
                                     # Check if download is complete
                                     if total_size != -1 and downloaded_size >= total_size:
-                                        if self.debug:
-                                            logger.debug("Download complete (size match)")
+                                        logger.debug("Download complete (size match)")
                                         break
 
                                 except asyncio.TimeoutError:
-                                    if self.debug:
-                                        logger.debug(f"Timeout while reading chunk after downloading {downloaded_size / 1024 / 1024:.2f}MB")
+                                    logger.debug(f"Timeout while reading chunk after downloading {downloaded_size / 1024 / 1024:.2f}MB")
 
                                     # If we've downloaded a significant portion, try to continue
                                     if (
                                         downloaded_size > buffer_size * 5 if buffer_size * 5 < 1024 * 1024 * 100 else 1024 * 1024 * 100
                                     ):  # At least 5 times the download buffer size but not more than 100Mb
-                                        if self.debug:
-                                            logger.debug("Continuing download despite chunk timeout")
+                                        logger.debug("Continuing download despite chunk timeout")
                                         continue
 
                                     # Otherwise, retry the whole download
@@ -1351,8 +1321,7 @@ class HttpClient:
                     # Verify download size
                     if downloaded_size <= 1024 and retry_attempt < retry_count:
                         # Very small file, might be an error response
-                        if self.debug:
-                            logger.debug(f"Downloaded file is too small ({downloaded_size} bytes), retrying...")
+                        logger.debug(f"Downloaded file is too small ({downloaded_size} bytes), retrying...")
                         continue
 
                     # Process completion
@@ -1360,8 +1329,7 @@ class HttpClient:
                         completion_time = time()
                         time_passed = round(completion_time - start_time, 2)
 
-                        if self.debug:
-                            logger.debug(f"Download completed in {time_passed}s")
+                        logger.debug(f"Download completed in {time_passed}s")
 
                         # Update status parent if provided
                         if status_parent:
@@ -1372,8 +1340,7 @@ class HttpClient:
                                 "time_passed": time_passed,
                             }
 
-                            if self.debug:
-                                logger.debug("Updating status parent with completion data")
+                            logger.debug("Updating status parent with completion data")
 
                             if isinstance(status_parent, dict):
                                 status_parent.update(completed_data)
@@ -1391,38 +1358,41 @@ class HttpClient:
                                 "filename": filename,
                                 "total_size": path.getsize(file_path),
                             }
-
-                            if self.debug:
-                                logger.debug(f"Calling done callback with data: {done_data}")
+                    
+                            logger.debug(f"Calling done callback with data: {done_data}")
 
                             if iscoroutinefunction(done_callback):
                                 await done_callback(**done_data)
                             else:
                                 done_callback(**done_data)
 
+                    # Mark download as complete in tracker
+                    if tracker.enabled:
+                        tracker.complete_download(download_id, file_path)
+
                     # If successful, break out of the retry loop
                     break
 
                 except (asyncio.TimeoutError, ConnectionError) as e:
                     # Only retry on timeouts and connection errors
-                    if retry_attempt < retry_count:
-                        if self.debug:
-                            logger.debug(f"Download error (attempt {retry_attempt + 1}/{retry_count + 1}): {str(e)}")
+                    if retry_attempt < retry_count:                     
+                        logger.debug(f"Download error (attempt {retry_attempt + 1}/{retry_count + 1}): {str(e)}")
                     else:
-                        # Last attempt failed, re-raise
+                        # Last attempt failed, remove from tracker and re-raise
+                        if tracker.enabled:
+                            tracker.remove_download(download_id)
                         logger.error(f"Download failed after {retry_count + 1} attempts: {str(e)}")
                         raise
 
         except Exception as e:
-            if self.debug:
-                logger.debug(f"Download error: {str(e)}")
-            else:
-                logger.error(f"Download error: {str(e)}")
+            # Remove failed download from tracker
+            if tracker.enabled:
+                tracker.remove_download(download_id)
+            logger.debug(f"Download error: {str(e)}")
             raise
         finally:
             if should_close:
-                if self.debug:
-                    logger.debug("Closing session")
+                logger.debug("Closing session")
                 await session.close()
 
         return Path(file_path)
@@ -1479,8 +1449,7 @@ class HttpClient:
         filename = url.split("/")[-1] if "/" in url else url
         download_task.set_name(f"Download_{filename[:30]}")
 
-        if self.debug:
-            logger.debug(f"Started detached download task for: {options.get('url')}")
+        logger.debug(f"Started detached download task for: {options.get('url')}")
 
         return download_task
 
@@ -1497,17 +1466,25 @@ class HttpClient:
 
         # Check if the URL is a YouTube link
         if re.match(youtube_pattern, url):
+            logger.debug(f"Detected YouTube URL: {url}")
             # Check if it's a playlist
             playlist_id_match = re.findall(r"[&?]list=([^&]+)", url)
             if playlist_id_match:
+                logger.debug(f"Detected YouTube playlist ID: {playlist_id_match[0]}")
                 try:
                     from pytube import Playlist
 
-                    playlist = Playlist(url)
-                    # Return list of video URLs in the playlist
+                    logger.debug("Extracting playlist using pytube")
+                    playlist = Playlist(url, proxies={"https": self._get_effective_proxy(url)})
+                    # Check if the playlist is empty
+                    if not playlist.video_urls:
+                        logger.debug("The playlist is empty.")
+                        return []
+                    logger.debug(f"Extracted playlist successfully. Number of videos: {len(playlist.video_urls)}")
                     return list(playlist.video_urls)
                 except Exception as e:
                     logger.debug(f"Failed to extract playlist: {str(e)}")
+                    return []
 
         return [url]
 

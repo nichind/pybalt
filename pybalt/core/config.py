@@ -77,6 +77,14 @@ class Config:
             "update_check_last_version": "",
             "allow_bulk_download": "True",
         },
+        "display": {
+            "enable_tracker": "True",
+            "show_path": "True",
+            "enable_colors": "False",
+            "max_filename_length": "32",
+            "progress_bar_width": "20",
+            "max_visible_items": "4",
+        }
     }
 
     # Settings that should be converted to numbers (int or float) when retrieved and changed in the config gui
@@ -559,7 +567,6 @@ class Config:
             self.save_config()
             return True
         return False
-
 
 def open_in_explorer(path):
     """
