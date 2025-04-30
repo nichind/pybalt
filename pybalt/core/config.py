@@ -37,16 +37,15 @@ class Config:
         "network": {
             "use_system_proxy": "True",
             "proxy": "",
-            "timeout": "30",
-            "download_timeout": "300",
-            "max_retries": "5",
-            "download_retries": "3",
-            "retry_delay": "1.0",
+            "timeout": "10",
+            "download_timeout": "20",
+            "max_retries": "3",
+            "download_retries": "2",
+            "retry_delay": "0.5",
             "callback_rate": "1.000",
             "max_concurrent_downloads": "3",
             "download_buffer_size": "1048576",  # equals to 1 Mb
             "bypass_proxy_for_localhost": "True",
-            "network_mode": "host",
             "progressive_timeout": "True",
         },
         "instances": {
@@ -65,6 +64,7 @@ class Config:
         "local": {
             "local_instance_port": "9000",
             "use_pc_proxy": "True",
+            "network_mode": "host",
             "proxy_url": "",
         },
         "ffmpeg": {"remux_args": "-hwaccel opencl", "keep_original": "True"},

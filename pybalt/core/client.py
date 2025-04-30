@@ -1115,9 +1115,9 @@ class HttpClient:
         if download_timeout is None:
             # Use a dedicated download_timeout setting if available, otherwise fall back to regular timeout
             download_timeout = (
-                self.config.get_as_number("download_timeout", 300, section="network")
-                or self.config.get_as_number("timeout", 30, section="network") * 5
-            )  # 5x regular timeout as fallback
+                self.config.get_as_number("download_timeout", 20, section="network")
+                or self.config.get_as_number("timeout", 10, section="network") * 2
+            )  # 2x regular timeout as fallback
 
         request_timeout = ClientTimeout(total=download_timeout)
         should_close = options.get("close", True)
