@@ -99,6 +99,13 @@ class Config:
         "max_concurrent_downloads",
         "download_buffer_size",
         "update_period",
+        "max_filename_length",
+        "progress_bar_width",
+        "max_visible_items",
+        "port",
+        "last_update_check",
+        "update_check_interval",
+        "duration_limit"
     }
 
     def __init__(self):
