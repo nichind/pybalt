@@ -20,7 +20,7 @@ async def test_download_youtube():
     assert os.path.exists(path), f"File {path} does not exist"
 
     # Check if filename contains the video title
-    assert YOUTUBE_TEST_TITLE in path.name, f"Filename {path} does not contain the video title {downloaded.name}"
+    assert YOUTUBE_TEST_TITLE in path.name, f"Filename {path} does not contain the video title {YOUTUBE_TEST_TITLE}"
     
     # Check if the video is in correct resolution
     assert "1080p" in path.name, f"Video resolution {downloaded[0].resolution} is not 1080p" 
