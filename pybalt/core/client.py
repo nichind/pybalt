@@ -1462,7 +1462,7 @@ class HttpClient:
         """
         # YouTube playlist
         # Define a regex pattern to match all YouTube URL variations
-        youtube_pattern = r"(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)(?:\/[^\s]*)?"
+        youtube_pattern = r"(?:https?:\/\/)?(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be)(?:\/[^\s]*)?"
 
         # Check if the URL is a YouTube link
         if re.match(youtube_pattern, url):
@@ -1480,11 +1480,11 @@ class HttpClient:
                     if not playlist.video_urls:
                         logger.debug("The playlist is empty.")
                         return []
-                    elif "music." in url:
+                    logger.debug(f"Extracted playlist successfully. Number of videos: {len(playlist.video_urls)}")
+                    if "music." in url:
                         # For YouTube Music playlists, we need to extract the video URLs and replace the domain with music.youtube.com
                         logger.debug("Detected YouTube Music playlist")
-                        playlist.video_urls = [url.replace("youtube.com", "music.youtube.com") for url in playlist.video_urls]
-                    logger.debug(f"Extracted playlist successfully. Number of videos: {len(playlist.video_urls)}")
+                        return [url.replace("www.", "music.") for url in playlist.video_urls]
                     return list(playlist.video_urls)
                 except Exception as e:
                     logger.debug(f"Failed to extract playlist: {str(e)}")
