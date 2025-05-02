@@ -1480,6 +1480,10 @@ class HttpClient:
                     if not playlist.video_urls:
                         logger.debug("The playlist is empty.")
                         return []
+                    elif "music." in url:
+                        # For YouTube Music playlists, we need to extract the video URLs and replace the domain with music.youtube.com
+                        logger.debug("Detected YouTube Music playlist")
+                        playlist.video_urls = [url.replace("youtube.com", "music.youtube.com") for url in playlist.video_urls]
                     logger.debug(f"Extracted playlist successfully. Number of videos: {len(playlist.video_urls)}")
                     return list(playlist.video_urls)
                 except Exception as e:
