@@ -19,7 +19,7 @@ class Remuxer:
     def remux(self, path: Path | str, keep_original: bool = None) -> Path:
         if isinstance(path, str):
             path = Path(path)
-        if not keep_original:
+        if keep_original is None:
             keep_original = self.config.get("keep_original", True, "ffmpeg")
         start_time = time()
         output = path.with_name(f"rmx_{path.name}")
