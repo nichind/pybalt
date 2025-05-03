@@ -17,6 +17,7 @@ from typing import (
 ) 
 from pathlib import Path
 import logging
+import asyncio
 from ipaddress import ip_address
 
 
@@ -606,16 +607,29 @@ class InstanceManager:
 
         # Make a copy of the ignored_instances list to avoid modifying the original
         current_ignored_instances = list(ignored_instances or [])
-
-        for url in complete_urls:
+        
+        # Get the maximum number of concurrent downloads from config
+        max_concurrent = self.config.get_as_number("max_concurrent_downloads", 6, section="network")
+        
+        # Create a semaphore to limit concurrent downloads
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        # Dictionary to track active download tasks by URL
+        active_downloads = {}
+        # Queue of pending URLs
+        pending_urls = complete_urls.copy()
+        
+        logger.debug(f"Starting download_generator with {len(complete_urls)} URLs, max_concurrent={max_concurrent}")
+        
+        # Helper function to process a single URL
+        async def process_url(url):
             retry_count = 0
             while retry_count <= max_retries:
                 try:
                     response = await self.first_tunnel(url, close=False, ignored_instances=current_ignored_instances, **params)
                     if response.get("status", "") == "error":
                         error = ValueError(f"Error: {response['error']['code']}")
-                        yield None if only_path else (url, None, error)
-                        break
+                        return url, None, error
 
                     if response.get("status", "") == "tunnel" or response.get("status", "") == "redirect":
                         download_url = response.get("url")
@@ -624,12 +638,23 @@ class InstanceManager:
                         # Get the instance that responded
                         responding_instance = response.get("instance_info", {}).get("url")
                         
-                        file_path = await self.client.download_file(
+                        # Create a download task using detached_download
+                        download_task = await self.client.detached_download(
                             url=download_url,
                             filename=filename,
                             timeout=self.config.get("download_timeout", 60),
                             progressive_timeout=True,
                         )
+                        
+                        try:
+                            file_path = await download_task
+                        except Exception as e:
+                            logger.debug(f"Download failed for {url}: {e}")
+                            if retry_count < max_retries:
+                                retry_count += 1
+                                logger.debug(f"Retrying download for {url}, attempt {retry_count}/{max_retries}")
+                                continue
+                            return url, None, e
                         
                         # Check if file is a "ghost file" (too small)
                         if file_path and file_path.exists():
@@ -654,8 +679,7 @@ class InstanceManager:
                                     continue
                                 else:
                                     logger.warning(f"Max retries reached for {url}")
-                                    yield None if only_path else (url, None, ValueError("Ghost file detected and max retries reached"))
-                                    break
+                                    return url, None, ValueError("Ghost file detected and max retries reached")
                         
                         # Apply remuxing if requested
                         if remux and file_path:
@@ -666,17 +690,83 @@ class InstanceManager:
                             except Exception as e:
                                 logger.debug(f"Error remuxing file {file_path}: {e}")
                         
-                        yield file_path if only_path else (url, file_path, None)
-                        break
+                        return url, file_path, None
                     else:
                         # Handle picker responses or other status types
                         error = ValueError(f"Unsupported response status: {response.get('status')}")
-                        yield None if only_path else (url, None, error)
-                        break
+                        return url, None, error
                 except Exception as e:
                     logger.debug(f"Error processing URL {url}: {e}")
-                    yield None if only_path else (url, None, e)
-                    break
+                    return url, None, e
+            
+            # If we somehow exit the retry loop without returning
+            return url, None, ValueError(f"Unknown error occurred after {max_retries} retries")
+        
+        # Process URLs with controlled concurrency
+        async def download_with_semaphore(url):
+            async with semaphore:
+                logger.debug(f"Starting download for {url}")
+                result = await process_url(url)
+                logger.debug(f"Completed download for {url}")
+                return result
+        
+        # Start initial batch of downloads
+        tasks_to_start = min(max_concurrent, len(pending_urls))
+        for _ in range(tasks_to_start):
+            if pending_urls:
+                url = pending_urls.pop(0)
+                task = asyncio.create_task(download_with_semaphore(url))
+                active_downloads[url] = task
+        
+        # Process downloads until all are complete
+        while active_downloads or pending_urls:
+            # If we have both active downloads and pending URLs, wait for one to complete
+            if active_downloads:
+                # Wait for any active download to complete
+                done, pending = await asyncio.wait(
+                    active_downloads.values(), 
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # Process completed downloads
+                for task in done:
+                    # Find the URL for this task
+                    completed_url = next(url for url, t in active_downloads.items() if t == task)
+                    # Remove from active downloads
+                    del active_downloads[completed_url]
+                    
+                    try:
+                        url, file_path, error = task.result()
+                        # Yield the result
+                        yield file_path if only_path else (url, file_path, error)
+                        
+                        # Start a new download if any are pending
+                        if pending_urls:
+                            next_url = pending_urls.pop(0)
+                            new_task = asyncio.create_task(download_with_semaphore(next_url))
+                            active_downloads[next_url] = new_task
+                    except Exception as e:
+                        logger.error(f"Unexpected error in download task for {completed_url}: {e}")
+                        yield None if only_path else (completed_url, None, e)
+                        
+                        # Start a new download if any are pending
+                        if pending_urls:
+                            next_url = pending_urls.pop(0)
+                            new_task = asyncio.create_task(download_with_semaphore(next_url))
+                            active_downloads[next_url] = new_task
+            
+            # If no active downloads but we have pending URLs, start a batch
+            elif pending_urls:
+                tasks_to_start = min(max_concurrent, len(pending_urls))
+                for _ in range(tasks_to_start):
+                    if pending_urls:
+                        url = pending_urls.pop(0)
+                        task = asyncio.create_task(download_with_semaphore(url))
+                        active_downloads[url] = task
+                        
+            # If we somehow have no active downloads and no pending URLs, we're done
+            else:
+                break
 
     async def download(
         self,
@@ -718,6 +808,6 @@ class InstanceManager:
                     results[i] = result[1]
         if not results:
             return None
-        if not isinstance(result, list):
-            return result
-        return results if len(result) > 1 else results[0]
+        if not isinstance(results, list):
+            return results
+        return results if len(results) > 1 else results[0]
