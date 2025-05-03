@@ -82,7 +82,7 @@ class Remuxer:
             path.unlink()
             output = output.rename(path)
         logger.debug(
-            f"Remux result: {output}" f"{output.stat().st_size / 1024 / 1024:.2f}MB {time() - start_time:.2f}s",
+            f"Remux result: {output}{output.stat().st_size / 1024 / 1024:.2f}MB {time() - start_time:.2f}s",
         )
         return output
 

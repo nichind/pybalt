@@ -69,7 +69,8 @@ def run_api(port=None, **kwargs):
     uvicorn.run(app, host="0.0.0.0", port=port)
 
 
-HTML_TEMPLATE = """<!DOCTYPE html>
+HTML_TEMPLATE = (
+    """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -774,7 +775,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
     
     <div class="footer">
-        Powered by <a href="https://github.com/nichind/pybalt" target="_blank">pybalt</a> • Version """ + VERSION + """
+        Powered by <a href="https://github.com/nichind/pybalt" target="_blank">pybalt</a> • Version """
+    + VERSION
+    + """
         <div class="instance-count loading" id="instance-count">
             <span class="instance-count-dot"></span>
             <span id="instance-count-text">Loading instances...</span>
@@ -1130,3 +1133,4 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </body>
 </html>
 """
+)

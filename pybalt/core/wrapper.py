@@ -14,7 +14,7 @@ from typing import (
     AsyncGenerator,
     Tuple,
     Set,
-) 
+)
 from pathlib import Path
 import logging
 import asyncio
@@ -159,14 +159,14 @@ class Instance:
             self.api_url = f"{info['protocol']}://{info['api']}"
         elif url:
             self.info = {"api": url}
-            
+
             # Check if URL already has a protocol
             if "://" in url:
                 self.api_url = url
             else:
                 # Extract host for IP checking
                 host = url.split("/")[0].split(":")[0]  # Remove any path, query or port
-                
+
                 # Check if host is an IP address
                 try:
                     ip_address(host)
@@ -266,7 +266,7 @@ class Instance:
     def instance_id(self) -> str:
         """
         Get a unique identifier for this instance.
-        
+
         Returns:
             A string that uniquely identifies this instance
         """
@@ -285,7 +285,7 @@ class InstanceManager:
         if self.debug:
             global logger
             logger = get_logger(__name__, debug=True)
-            
+
         self.client = client
         self.local_instance = LocalInstance(config=self.config)
         self.user_instances = [
@@ -409,7 +409,7 @@ class InstanceManager:
 
     async def get_instances(self, ignored_instances: Optional[List[str]] = None) -> List[Instance]:
         """
-        Get a list of ALL available Cobalt instances including local, user_instances from the config, 
+        Get a list of ALL available Cobalt instances including local, user_instances from the config,
         fetched instances from the list api and the fallback one, excluding any ignored instances.
 
         Args:
@@ -439,15 +439,16 @@ class InstanceManager:
             client=self.client,
             debug=self.debug,
         )
-        
+
         # Filter out ignored instances if specified
         all_instances = self.all_instances
         if ignored_instances:
             all_instances = [
-                instance for instance in all_instances 
+                instance
+                for instance in all_instances
                 if instance.api_url.replace("https://", "").replace("http://", "") not in ignored_instances
             ]
-            
+
         logger.debug(str(all_instances))
         return all_instances
 
@@ -471,21 +472,15 @@ class InstanceManager:
         # Remove ignoredInstances from params if present and merge with directly passed ignored_instances
         params_ignored = params.pop("ignoredInstances", None) or []
         all_ignored = list(set(params_ignored + (ignored_instances or [])))
-        
+
         # Get instances, filtering out ignored ones
         instances = await self.get_instances(all_ignored)
-        
+
         if not instances:
             logger.warning("No available instances after filtering out ignored instances")
-            yield CobaltErrorResponse(
-                status="error", 
-                error=CobaltError(
-                    code="NO_INSTANCES_AVAILABLE",
-                    context=None
-                )
-            )
+            yield CobaltErrorResponse(status="error", error=CobaltError(code="NO_INSTANCES_AVAILABLE", context=None))
             return
-            
+
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
@@ -503,20 +498,20 @@ class InstanceManager:
                 )
                 data = await response.json()
                 # Add responding instance information to the response
-                responding_instance = response.url.split('/')[2] if response.url else None
+                responding_instance = response.url.split("/")[2] if response.url else None
                 if responding_instance:
                     if "instance_info" not in data:
                         data["instance_info"] = {}
                     data["instance_info"]["url"] = responding_instance
-                
+
                 if data.get("status", "") == "tunnel":
                     # Handle URL in response that might be local
                     if data.get("url", None):
                         response_url = data.get("url")
                         # Check if URL is pointing to a local resource
                         if force_instance_origin or (
-                            any(local_pattern in response_url.lower() for local_pattern in ["localhost", "127.0.0.1", "::1"]) or 
-                            any(response_url.lower().startswith(f"http://{pattern}") for pattern in ["192.168.", "10.", "172.16."])
+                            any(local_pattern in response_url.lower() for local_pattern in ["localhost", "127.0.0.1", "::1"])
+                            or any(response_url.lower().startswith(f"http://{pattern}") for pattern in ["192.168.", "10.", "172.16."])
                         ):
                             # Get the instance that responded
                             instance_url = response.url
@@ -527,7 +522,7 @@ class InstanceManager:
                                 path_part = "/" + "/".join(response_url.split("/")[3:]) if len(response_url.split("/")) > 3 else ""
                                 data["url"] = f"{instance_base}{path_part}"
                                 logger.debug(f"Replaced local URL {response_url} with {data['url']}")
-                    
+
                     yield CobaltTunnelResponse(**data)
                 elif data.get("status", "") == "redirect":
                     yield CobaltRedirectResponse(**data)
@@ -571,7 +566,7 @@ class InstanceManager:
         only_path: bool = True,
         remux: bool = False,
         min_file_size: int = 1024,  # Default 1KB minimum size
-        max_retries: int = 3,       # Prevent infinite retry loops
+        max_retries: int = 3,  # Prevent infinite retry loops
         **params: Unpack[CobaltRequestParams],
     ) -> AsyncGenerator[Path | Tuple[str, Optional[Path], Optional[Exception]], None]:
         """
@@ -607,20 +602,20 @@ class InstanceManager:
 
         # Make a copy of the ignored_instances list to avoid modifying the original
         current_ignored_instances = list(ignored_instances or [])
-        
+
         # Get the maximum number of concurrent downloads from config
         max_concurrent = self.config.get_as_number("max_concurrent_downloads", 6, section="network")
-        
+
         # Create a semaphore to limit concurrent downloads
         semaphore = asyncio.Semaphore(max_concurrent)
-        
+
         # Dictionary to track active download tasks by URL
         active_downloads = {}
         # Queue of pending URLs
         pending_urls = complete_urls.copy()
-        
+
         logger.debug(f"Starting download_generator with {len(complete_urls)} URLs, max_concurrent={max_concurrent}")
-        
+
         # Helper function to process a single URL
         async def process_url(url):
             retry_count = 0
@@ -634,10 +629,10 @@ class InstanceManager:
                     if response.get("status", "") == "tunnel" or response.get("status", "") == "redirect":
                         download_url = response.get("url")
                         filename = response.get("filename")
-                        
+
                         # Get the instance that responded
                         responding_instance = response.get("instance_info", {}).get("url")
-                        
+
                         # Create a download task using detached_download
                         download_task = await self.client.detached_download(
                             url=download_url,
@@ -645,7 +640,7 @@ class InstanceManager:
                             timeout=self.config.get("download_timeout", 60),
                             progressive_timeout=True,
                         )
-                        
+
                         try:
                             file_path = await download_task
                         except Exception as e:
@@ -655,32 +650,34 @@ class InstanceManager:
                                 logger.debug(f"Retrying download for {url}, attempt {retry_count}/{max_retries}")
                                 continue
                             return url, None, e
-                        
+
                         # Check if file is a "ghost file" (too small)
                         if file_path and file_path.exists():
                             file_size = file_path.stat().st_size
                             if file_size < min_file_size:
                                 logger.warning(f"Ghost file detected from {responding_instance}: {file_path} ({file_size} bytes)")
-                                
+
                                 # Add responding instance to ignored list for retry
                                 if responding_instance and responding_instance not in current_ignored_instances:
                                     current_ignored_instances.append(responding_instance)
-                                
+
                                 # Delete the ghost file
                                 try:
                                     file_path.unlink()
                                 except Exception as e:
                                     logger.debug(f"Failed to delete ghost file {file_path}: {e}")
-                                
+
                                 # Retry if we haven't exceeded max retries
                                 retry_count += 1
                                 if retry_count <= max_retries:
-                                    logger.debug(f"Retrying download for {url}, attempt {retry_count}/{max_retries}, ignored: {current_ignored_instances}")
+                                    logger.debug(
+                                        f"Retrying download for {url}, attempt {retry_count}/{max_retries}, ignored: {current_ignored_instances}"
+                                    )
                                     continue
                                 else:
                                     logger.warning(f"Max retries reached for {url}")
                                     return url, None, ValueError("Ghost file detected and max retries reached")
-                        
+
                         # Apply remuxing if requested
                         if remux and file_path:
                             try:
@@ -689,7 +686,7 @@ class InstanceManager:
                                     file_path = remuxed_file_path
                             except Exception as e:
                                 logger.debug(f"Error remuxing file {file_path}: {e}")
-                        
+
                         return url, file_path, None
                     else:
                         # Handle picker responses or other status types
@@ -698,10 +695,10 @@ class InstanceManager:
                 except Exception as e:
                     logger.debug(f"Error processing URL {url}: {e}")
                     return url, None, e
-            
+
             # If we somehow exit the retry loop without returning
             return url, None, ValueError(f"Unknown error occurred after {max_retries} retries")
-        
+
         # Process URLs with controlled concurrency
         async def download_with_semaphore(url):
             async with semaphore:
@@ -709,7 +706,7 @@ class InstanceManager:
                 result = await process_url(url)
                 logger.debug(f"Completed download for {url}")
                 return result
-        
+
         # Start initial batch of downloads
         tasks_to_start = min(max_concurrent, len(pending_urls))
         for _ in range(tasks_to_start):
@@ -717,29 +714,26 @@ class InstanceManager:
                 url = pending_urls.pop(0)
                 task = asyncio.create_task(download_with_semaphore(url))
                 active_downloads[url] = task
-        
+
         # Process downloads until all are complete
         while active_downloads or pending_urls:
             # If we have both active downloads and pending URLs, wait for one to complete
             if active_downloads:
                 # Wait for any active download to complete
-                done, pending = await asyncio.wait(
-                    active_downloads.values(), 
-                    return_when=asyncio.FIRST_COMPLETED
-                )
-                
+                done, pending = await asyncio.wait(active_downloads.values(), return_when=asyncio.FIRST_COMPLETED)
+
                 # Process completed downloads
                 for task in done:
                     # Find the URL for this task
                     completed_url = next(url for url, t in active_downloads.items() if t == task)
                     # Remove from active downloads
                     del active_downloads[completed_url]
-                    
+
                     try:
                         url, file_path, error = task.result()
                         # Yield the result
                         yield file_path if only_path else (url, file_path, error)
-                        
+
                         # Start a new download if any are pending
                         if pending_urls:
                             next_url = pending_urls.pop(0)
@@ -748,13 +742,13 @@ class InstanceManager:
                     except Exception as e:
                         logger.error(f"Unexpected error in download task for {completed_url}: {e}")
                         yield None if only_path else (completed_url, None, e)
-                        
+
                         # Start a new download if any are pending
                         if pending_urls:
                             next_url = pending_urls.pop(0)
                             new_task = asyncio.create_task(download_with_semaphore(next_url))
                             active_downloads[next_url] = new_task
-            
+
             # If no active downloads but we have pending URLs, start a batch
             elif pending_urls:
                 tasks_to_start = min(max_concurrent, len(pending_urls))
@@ -763,7 +757,7 @@ class InstanceManager:
                         url = pending_urls.pop(0)
                         task = asyncio.create_task(download_with_semaphore(url))
                         active_downloads[url] = task
-                        
+
             # If we somehow have no active downloads and no pending URLs, we're done
             else:
                 break
@@ -787,19 +781,14 @@ class InstanceManager:
             only_path: If True, yield only the file path instead of the full result tuple
             remux: If True, remux the downloaded file
             **params: Parameters for the Cobalt API request
-            
+
         Returns:
             List of tuples containing (url, file_path, exception) for each download.
             If exception is None, the download was successful.
         """
         results = []
         async for result in self.download_generator(
-            url=url, 
-            urls=urls, 
-            ignored_instances=ignored_instances, 
-            only_path=only_path,
-            remux=remux, 
-            **params
+            url=url, urls=urls, ignored_instances=ignored_instances, only_path=only_path, remux=remux, **params
         ):
             results.append(result)
         if only_path:

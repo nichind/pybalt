@@ -26,6 +26,7 @@ import subprocess
 from urllib.parse import urlparse
 from .config import Config
 import asyncio
+from collections import deque
 from .logging_utils import get_logger
 from ..misc.tracker import get_tracker
 import uuid
@@ -177,7 +178,7 @@ class HttpClient:
         # Detect system proxy if auto-detect is enabled and no proxy is provided
         if auto_detect_proxy and not self.proxy:
             self.proxy = self._detect_system_proxy()
-            
+
         # Set logger to debug level if debug is enabled
         logger.setLevel(logging.DEBUG)
 
@@ -573,7 +574,7 @@ class HttpClient:
 
                     try:
                         response_text = await response.text()
-                        response_obj._text = response_text                       
+                        response_obj._text = response_text
                         logger.debug(f"Response text (preview): {response_text[:200]}...")
 
                         try:
@@ -936,9 +937,6 @@ class HttpClient:
             Tuples containing (url, file_path, exception) for each download
             If exception is None, the download was successful
         """
-        import asyncio
-        from collections import deque
-
         # Check if bulk downloads are allowed in config
         if not self.config.get("allow_bulk_download", True, section="misc"):
             raise Exception("Bulk downloads are disabled in configuration")
@@ -995,12 +993,12 @@ class HttpClient:
                     if task.done():
                         try:
                             url, path, error = task.result()
-                            results.append((url, path, error))                 
+                            results.append((url, path, error))
                             status = "failed" if error else "completed"
                             logger.debug(f"Download of {url} {status}")
                             yield url, path, error
                         except Exception as e:
-                            # This should not happen as exceptions are handled in _download_and_track                       
+                            # This should not happen as exceptions are handled in _download_and_track
                             logger.debug(f"Unexpected error in bulk download: {str(e)}")
 
     async def bulk_download(
@@ -1153,7 +1151,7 @@ class HttpClient:
             # Add proxy if specified
             if request_proxy:
                 download_kwargs["proxy"] = request_proxy
-            
+
             logger.debug(f"Starting download request with kwargs: {download_kwargs}")
 
             # Add retry loop for download
@@ -1165,7 +1163,7 @@ class HttpClient:
                 try:
                     async with session.get(url, **download_kwargs) as response:
                         if response.status >= 400:
-                            error_msg = f"Failed to download file, status code: {response.status}"                
+                            error_msg = f"Failed to download file, status code: {response.status}"
                             logger.debug(error_msg)
 
                             # Only retry on certain error codes
@@ -1173,7 +1171,7 @@ class HttpClient:
                                 continue
                             raise Exception(error_msg)
 
-                        total_size = int(response.headers.get("Content-Length", -1))                        
+                        total_size = int(response.headers.get("Content-Length", -1))
                         logger.debug(f"Content-Length: {total_size} bytes")
 
                         # If progressive timeout is enabled, adjust timeout based on file size
@@ -1227,7 +1225,7 @@ class HttpClient:
                                     await f.write(chunk)
                                     chunk_size = len(chunk)
                                     downloaded_size += chunk_size
-                                    
+
                                     # Update download tracker
                                     tracker.update_download(download_id, downloaded_size=downloaded_size)
 
@@ -1267,11 +1265,11 @@ class HttpClient:
                                             "iteration": iteration,
                                             "eta": round(eta),
                                         }
-                                        
+
                                         # Update tracker with download speed and ETA
                                         if tracker.enabled:
                                             tracker.update_download(
-                                                download_id, 
+                                                download_id,
                                                 speed=download_speed,
                                                 eta=eta if eta else 0,
                                             )
@@ -1358,7 +1356,7 @@ class HttpClient:
                                 "filename": filename,
                                 "total_size": path.getsize(file_path),
                             }
-                    
+
                             logger.debug(f"Calling done callback with data: {done_data}")
 
                             if iscoroutinefunction(done_callback):
@@ -1375,7 +1373,7 @@ class HttpClient:
 
                 except (asyncio.TimeoutError, ConnectionError) as e:
                     # Only retry on timeouts and connection errors
-                    if retry_attempt < retry_count:                     
+                    if retry_attempt < retry_count:
                         logger.debug(f"Download error (attempt {retry_attempt + 1}/{retry_count + 1}): {str(e)}")
                     else:
                         # Last attempt failed, remove from tracker and re-raise

@@ -6,6 +6,7 @@ import sys
 import subprocess
 from typing import Optional, Dict, Any, List, Union
 from asyncio import get_event_loop, new_event_loop
+from dotenv import load_dotenv
 
 try:
     from prompt_toolkit import Application
@@ -84,7 +85,7 @@ class Config:
             "max_filename_length": "32",
             "progress_bar_width": "20",
             "max_visible_items": "4",
-        }
+        },
     }
 
     # Settings that should be converted to numbers (int or float) when retrieved and changed in the config gui
@@ -105,7 +106,7 @@ class Config:
         "port",
         "last_update_check",
         "update_check_interval",
-        "duration_limit"
+        "duration_limit",
     }
 
     def __init__(self):
@@ -142,6 +143,19 @@ class Config:
         Returns:
             Path to the configuration folder.
         """
+        # Load environment variables from .env file if it exists
+        load_dotenv()
+        
+        # Check for environment variable first
+        # This allows for overriding the default config directory
+        if os.getenv("PYBALT_CONFIG_DIR") is not None:
+            config_folder_path = Path(os.getenv("PYBALT_CONFIG_DIR"))
+            if config_folder_path.is_dir():
+                return config_folder_path
+            else:
+                print(f"Warning: PYBALT_CONFIG_DIR points to a non-directory path: {config_folder_path}")
+    
+        # Determine the platform and set the base path accordingly
         system = platform.system()
 
         if system == "Windows":
@@ -161,6 +175,15 @@ class Config:
         Returns:
             Path to the configuration file.
         """
+        # Check for environment variable first
+        # This allows for overriding the default config file path
+        if os.getenv("PYBALT_CONFIG_PATH") is not None:
+            config_file_path = Path(os.getenv("PYBALT_CONFIG_PATH"))
+            if config_file_path.is_file():
+                return config_file_path
+            else:
+                print(f"Warning: PYBALT_CONFIG_PATH points to a non-file path: {config_file_path}")
+        # If no environment variable is set, use the default path
         return self._get_config_dir() / "settings.ini"
 
     def ensure_config_exists(self) -> None:
@@ -574,6 +597,7 @@ class Config:
             self.save_config()
             return True
         return False
+
 
 def open_in_explorer(path):
     """
