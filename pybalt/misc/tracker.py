@@ -1,37 +1,170 @@
 import os
+import re
 import time
 import shutil
 import asyncio
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 import threading
-import contextlib
+from os import path
+from pathlib import Path
+from typing import Dict, List, Optional, Any, TypedDict, Union, Tuple
+from typing_extensions import Unpack
+from shutil import get_terminal_size
 import sys
 
+try:
+    from rich.console import Console
+except ImportError:
+    # Create a basic Console class if rich isn't available
+    class Console:
+        def print(self, *args, **kwargs):
+            end = kwargs.get("end", "\n")
+            print(*args, end=end)
 
-# ANSI color codes
-class Colors:
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    BLACK = "\033[30m"
-    RED = "\033[31m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    BLUE = "\033[34m"
-    MAGENTA = "\033[35m"
-    CYAN = "\033[36m"
-    WHITE = "\033[37m"
-    BRIGHT_BLACK = "\033[90m"
-    BRIGHT_RED = "\033[91m"
-    BRIGHT_GREEN = "\033[92m"
-    BRIGHT_YELLOW = "\033[93m"
-    BRIGHT_BLUE = "\033[94m"
-    BRIGHT_MAGENTA = "\033[95m"
-    BRIGHT_CYAN = "\033[96m"
-    BRIGHT_WHITE = "\033[97m"
-    BG_GREEN = "\033[42m"
-    BG_BLUE = "\033[44m"
-    BG_BLACK = "\033[40m"
+
+class Terminal:
+    """A class to handle terminal output with rich styling"""
+
+    console = Console()
+
+    replaces = {
+        ":accent:": "\033[96m",
+        ":reset:": "\033[0m",
+        ":end:": "\033[0m",
+        ":bold:": "\033[1m",
+        ":underline:": "\033[4m",
+        ":italic:": "\033[3m",
+        ":strikethrough:": "\033[9m",
+        ":red:": "\033[31m",
+        ":green:": "\033[32m",
+        ":yellow:": "\033[33m",
+        ":blue:": "\033[34m",
+        ":magenta:": "\033[35m",
+        ":cyan:": "\033[36m",
+        ":purple:": "\033[35m",
+        ":orange:": "\033[33m",
+        ":pink:": "\033[35m",
+        ":light_gray:": "\033[37m",
+        ":dark_gray:": "\033[90m",
+        ":lime:": "\033[92m",
+        ":white:": "\033[37m",
+        ":gray:": "\033[90m",
+        ":bg_black:": "\033[40m",
+        ":bg_red:": "\033[41m",
+        ":bg_green:": "\033[42m",
+        ":bg_yellow:": "\033[43m",
+        ":bg_blue:": "\033[44m",
+        ":bg_magenta:": "\033[45m",
+        ":bg_cyan:": "\033[46m",
+        ":bg_white:": "\033[47m",
+    }
+
+    # Pattern to detect ANSI escape sequences and emojis for correct length calculation
+    pattern = re.compile(
+        r"[\x1b\x9b\x9f][\[\]()\\]*[0-?]*[ -/]*[@-~]"
+        r"|[\U00010000-\U0010ffff]"
+        r"|[\u200d]"
+        r"|[\u2640-\u2642]"
+        r"|[\u2600-\u2b55]"
+        r"|[\u23cf]"
+        r"|[\u23e9]"
+        r"|[\u231a]"
+        r"|[\ufe0f]"  # dingbats
+        r"|[\u3030]"
+        "+",
+        flags=re.UNICODE,
+    )
+
+    @classmethod
+    def get_size(cls) -> Tuple[int, int]:
+        """Get terminal size as (width, height)"""
+        try:
+            return get_terminal_size()
+        except (AttributeError, OSError):
+            return (80, 24)  # Default fallback values
+
+    @classmethod
+    def apply_style(cls, text: str) -> str:
+        """Apply ANSI color styles to text markers like :red:"""
+        if not isinstance(text, str):
+            text = str(text)
+        for key, value in cls.replaces.items():
+            text = text.replace(key, value)
+        return text
+
+    @classmethod
+    def true_len(cls, text: str) -> int:
+        """Calculate the true length of text by removing ANSI codes and special characters"""
+        text = cls.apply_style(text)
+        _ = None
+        for i, char in enumerate(text):
+            if char == ":" and not _:
+                _ = i
+            elif char == ":" and _:
+                text = text.replace(text[_ + 1 : i], "")
+            elif char == " " and _:
+                _ = None
+        return len(
+            re.sub(
+                r"[\u001B\u009B][\[\]()#;?]*((([a-zA-Z\d]*(;[-a-zA-Z\d\/#&.:=?%@~_]*)*)?\u0007)|((\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-ntqry=><~]))",
+                "",
+                text,
+            )
+        )
+
+    @classmethod
+    def lprint(cls, *args: str, right: bool = False, **kwargs) -> None:
+        """Pretty print to terminal with styling and alignment options"""
+        args = [cls.apply_style(str(arg) if not isinstance(arg, Exception) else ":red:" + str(arg)) for arg in args]
+        terminal_width = cls.get_size()[0]
+        num_args = len(args)
+
+        if "highlight" not in kwargs:
+            kwargs["highlight"] = False
+
+        if num_args == 0:
+            return
+
+        if num_args == 3:
+            _center = args[1].center(terminal_width).rstrip()
+            print(
+                " " * (terminal_width - cls.true_len(args[2])) + cls.apply_style(args[2]) + cls.apply_style(":end:"),
+                end="\r",
+            )
+            cls.console.print(
+                " " * ((len(_center) - cls.true_len(_center)) // 2) + _center + cls.apply_style(":end:"),
+                end="\r",
+                highlight=kwargs["highlight"],
+            )
+            cls.console.print(args[0], end="\r", highlight=kwargs["highlight"])
+        elif num_args == 2:
+            print(
+                " " * (terminal_width - cls.true_len(args[1])) + cls.apply_style(args[1]) + cls.apply_style(":end:"),
+                end="\r",
+            )
+            cls.console.print(
+                args[0] + cls.apply_style(":end:"),
+                end="\r",
+                highlight=kwargs["highlight"],
+            )
+        else:
+            if right:
+                print(
+                    " " * (terminal_width - cls.true_len(args[0])) + cls.apply_style(args[0]) + cls.apply_style(":end:"),
+                    end="\r",
+                )
+            else:
+                cls.console.print(
+                    args[0].ljust(terminal_width),
+                    end="\r",
+                    highlight=kwargs["highlight"],
+                )
+
+        if "end" not in kwargs:
+            cls.console.print(cls.apply_style(":end:"), **kwargs)
+
+
+# Shorthand for Terminal.lprint
+lprint = Terminal.lprint
 
 
 class DownloadInfo:
@@ -49,10 +182,29 @@ class DownloadInfo:
         self.completed = False
         self.last_update = time.time()
         self.last_size = 0
+        self.iteration = 0
+
+    def __repr__(self) -> str:
+        values = ", ".join(f"{key}={value!r}" for key, value in self.__dict__.items())
+        return f"{self.__class__.__name__}({values})"
+
+
+class _DownloadCallbackData(TypedDict):
+    """Type definition for download callback data"""
+
+    filename: str
+    downloaded_size: int
+    start_at: int
+    time_passed: Union[int, float]
+    file_path: str
+    download_speed: int
+    total_size: int
+    iteration: int
+    eta: int
 
 
 class Tracker:
-    """Tracks and displays download progress in the terminal"""
+    """Enhanced tracker for download progress with better UI"""
 
     def __init__(self, config=None):
         # Import here to avoid circular imports
@@ -61,31 +213,23 @@ class Tracker:
         # Store config instance
         self.config = config or Config()
         self.downloads: Dict[str, DownloadInfo] = {}
+        self.queue: List[str] = []  # Track queued downloads
         self.lock = threading.RLock()
-        self._last_draw_time = 0
-        self._min_redraw_interval = 0.1  # seconds
-        self._is_drawing = False
-        self._visible = False
-        self._spinning_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        self._spin_index = 0
         self._running = False
         self._draw_thread = None
-        self._terminal_size = shutil.get_terminal_size()
-        self._terminal_width = self._terminal_size.columns
-        self._terminal_height = self._terminal_size.lines
-        self._max_visible_downloads = self._get_max_visible_items()
+        self._visible = False
+        self._last_draw_time = 0
+        self._min_redraw_interval = 0.1  # seconds
 
-    def _get_max_visible_items(self):
-        """Get the maximum number of visible download items based on config or terminal height"""
-        try:
-            # Explicitly use display section and provide default
-            config_max = self.config.get_as_number("max_visible_items", 0, section="display")
-            if config_max > 0:
-                return config_max
-        except Exception as e:
-            # Fallback if config access fails
-            return max(1, int(self._terminal_height * 0.25))
-        return max(1, int(self._terminal_height * 0.25))
+        # Spinner frames for animation
+        self._spinning_chars = ["⢎⡰", "⢎⡡", "⢎⡑", "⢎⠱", "⠎⡱", "⢊⡱", "⢌⡱", "⢆⡱"]
+        self._spin_index = 0
+
+        # Terminal dimensions
+        self._update_terminal_size()
+
+        # Backward compatibility for old code
+        self.start()
 
     @property
     def enabled(self):
@@ -93,7 +237,6 @@ class Tracker:
         try:
             return self.config.get("enable_tracker", True, section="display")
         except Exception:
-            # Fallback if config access fails
             return True
 
     @property
@@ -102,41 +245,120 @@ class Tracker:
         try:
             return self.config.get("enable_colors", True, section="display")
         except Exception:
-            # Fallback if config access fails
             return True
 
     @property
     def should_show_path(self):
-        """Check if the full path should be shown"""
+        """Check if file paths should be shown"""
         try:
             return self.config.get("show_path", True, section="display")
         except Exception:
-            # Fallback if config access fails
             return True
 
     @property
     def max_filename_length(self):
-        """Get the maximum length for displayed filenames"""
+        """Get the maximum length for filenames from config"""
         try:
             return self.config.get_as_number("max_filename_length", 25, section="display")
         except Exception:
-            # Fallback if config access fails
             return 25
 
     @property
     def progress_bar_width(self):
-        """Get the width of progress bars"""
+        """Get the progress bar width from config"""
         try:
-            return self.config.get_as_number("progress_bar_width", 20, section="display")
+            return self.config.get_as_number("progress_bar_width", 24, section="display")
         except Exception:
-            # Fallback if config access fails
-            return 20
+            return 24
 
-    def colored(self, text, color):
-        """Apply color to text if colors are enabled"""
-        if not self.colors_enabled:
-            return text
-        return f"{color}{text}{Colors.RESET}"
+    def _update_terminal_size(self):
+        """Update stored terminal dimensions"""
+        try:
+            self._terminal_size = Terminal.get_size()
+            self._terminal_width = self._terminal_size[0]
+            self._terminal_height = self._terminal_size[1]
+        except Exception:
+            self._terminal_width = 80
+            self._terminal_height = 24
+
+    def _get_spinner(self) -> str:
+        """Get the next spinner animation frame"""
+        char = self._spinning_chars[self._spin_index]
+        self._spin_index = (self._spin_index + 1) % len(self._spinning_chars)
+        return char if self.colors_enabled else char
+
+    def _format_size(self, size_bytes: int) -> str:
+        """Format size in bytes to human-readable format"""
+        if size_bytes < 0:
+            return ":gray:Unknown"
+        elif size_bytes < 1024:
+            return f":lime:{size_bytes}B"
+        elif size_bytes < 1024 * 1024:
+            return f":lime:{size_bytes / 1024:.1f}KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            return f":lime:{size_bytes / (1024 * 1024):.2f}MB"
+        else:
+            return f":lime:{size_bytes / (1024 * 1024 * 1024):.2f}GB"
+
+    def _format_speed(self, speed_bytes: float) -> str:
+        """Format speed in bytes/second to human-readable format"""
+        if speed_bytes < 1024:
+            return f":magenta:{speed_bytes:.0f}B/s"
+        elif speed_bytes < 1024 * 1024:
+            return f":magenta:{speed_bytes / 1024:.1f}KB/s"
+        else:
+            return f":magenta:{speed_bytes / (1024 * 1024):.2f}MB/s"
+
+    def _format_time(self, seconds: float) -> str:
+        """Format time in seconds to human-readable format"""
+        if seconds < 60:
+            return f":cyan:{seconds:.0f}s"
+        elif seconds < 3600:
+            minutes = int(seconds / 60)
+            secs = int(seconds % 60)
+            return f":cyan:{minutes}m {secs}s"
+        else:
+            hours = int(seconds / 3600)
+            minutes = int((seconds % 3600) / 60)
+            return f":cyan:{hours}h {minutes}m"
+
+    def _truncate_filename(self, filename: str, max_length: Optional[int] = None) -> str:
+        """Truncate filename to fit display width"""
+        if max_length is None:
+            max_length = self.max_filename_length
+
+        if len(filename) <= max_length:
+            return filename
+
+        # Keep extension
+        name, ext = os.path.splitext(filename)
+        trunc_len = max_length - len(ext) - 3  # 3 for '...'
+        if trunc_len < 1:
+            return filename[: max_length - 3] + "..."
+        return name[:trunc_len] + "..." + ext
+
+    def _draw_progress_bar(self, percentage: float) -> str:
+        """Draw a colorful progress bar with given percentage"""
+        width = self.progress_bar_width
+        completed_width = int(width * percentage / 100)
+        remaining_width = width - completed_width
+
+        # Character selection based on color support
+        fill_char = "▇" if self.colors_enabled else "="
+        empty_char = "-" if self.colors_enabled else " "
+
+        if self.colors_enabled:
+            # Color gradient based on completion
+            if percentage < 30:
+                color = ":red:"
+            elif percentage < 70:
+                color = ":yellow:"
+            else:
+                color = ":green:"
+
+            return f"[:gray:[{color}{fill_char * completed_width}:gray:{empty_char * remaining_width}]:gray:]"
+        else:
+            return f"[{fill_char * completed_width}{empty_char * remaining_width}]"
 
     def start(self):
         """Start the tracker display thread"""
@@ -155,144 +377,56 @@ class Tracker:
             self._draw_thread = None
         self._clear_display()
 
+    def _clear_display(self):
+        """Clear the tracker display from terminal"""
+        if not self._visible:
+            return
+
+        # Clear from cursor to end of screen
+        sys.stdout.write("\033[0J")
+        sys.stdout.flush()
+        self._visible = False
+
     def _draw_loop(self):
-        """Main drawing loop that updates the display"""
+        """Main loop that updates the display"""
         while self._running:
             try:
-                if self.downloads and self.enabled:
+                now = time.time()
+                if now - self._last_draw_time < self._min_redraw_interval:
+                    time.sleep(0.05)
+                    continue
+
+                self._last_draw_time = now
+
+                if (self.downloads or self.queue) and self.enabled:
                     self._update_terminal_size()
+                    self._update_downloads(now)
                     self._draw_downloads()
                     self._visible = True
                 elif self._visible:
                     self._clear_display()
                     self._visible = False
-            except Exception as e:
-                # Silently handle errors to prevent crashes
+            except Exception:
+                # Silently handle drawing errors
                 pass
             time.sleep(0.1)
 
-    def _update_terminal_size(self):
-        """Update the terminal size information"""
-        try:
-            self._terminal_size = shutil.get_terminal_size()
-            self._terminal_width = self._terminal_size.columns
-            self._terminal_height = self._terminal_size.lines
-            self._max_visible_downloads = self._get_max_visible_items()
-        except Exception:
-            # Default values if we can't get terminal size
-            self._terminal_width = 80
-            self._terminal_height = 24
-            self._max_visible_downloads = 5
-
-    def _clear_display(self):
-        """Clear the tracker display from the terminal"""
-        if not self._visible:
-            return
-
-        # Move cursor to bottom and clear tracker area
+    def _update_downloads(self, now: float):
+        """Update download speeds and ETAs"""
         with self.lock:
-            num_active = len([d for d in self.downloads.values() if not d.completed])
-            lines_to_clear = min(num_active, self._max_visible_downloads)
-            if lines_to_clear > 0:
-                # ANSI escape sequences to clear lines and position cursor
-                sys_write = sys.stdout.write
-                sys_write("\033[0J")  # Clear from cursor to end of screen
-                sys.stdout.flush()
-
-    def _get_spinner(self):
-        """Get the next frame of the spinner animation with color"""
-        char = self._spinning_chars[self._spin_index]
-        self._spin_index = (self._spin_index + 1) % len(self._spinning_chars)
-        return self.colored(char, Colors.BRIGHT_CYAN)
-
-    def _format_size(self, size_bytes):
-        """Format size in bytes to human-readable format with color"""
-        if size_bytes < 0:
-            return self.colored("Unknown", Colors.BRIGHT_BLACK)
-        elif size_bytes < 1024:
-            return self.colored(f"{size_bytes} B", Colors.BRIGHT_WHITE)
-        elif size_bytes < 1024 * 1024:
-            return self.colored(f"{size_bytes / 1024:.1f} KB", Colors.BRIGHT_WHITE)
-        elif size_bytes < 1024 * 1024 * 1024:
-            return self.colored(f"{size_bytes / (1024 * 1024):.1f} MB", Colors.BRIGHT_WHITE)
-        else:
-            return self.colored(f"{size_bytes / (1024 * 1024 * 1024):.2f} GB", Colors.BRIGHT_WHITE)
-
-    def _format_speed(self, speed_bytes):
-        """Format speed in bytes/second to human-readable format with color"""
-        if speed_bytes < 1024:
-            return self.colored(f"{speed_bytes:.0f} B/s", Colors.BRIGHT_YELLOW)
-        elif speed_bytes < 1024 * 1024:
-            return self.colored(f"{speed_bytes / 1024:.1f} KB/s", Colors.BRIGHT_YELLOW)
-        else:
-            return self.colored(f"{speed_bytes / (1024 * 1024):.2f} MB/s", Colors.BRIGHT_YELLOW)
-
-    def _format_time(self, seconds):
-        """Format time in seconds to human-readable format with color"""
-        if seconds < 60:
-            return self.colored(f"{seconds:.0f}s", Colors.BRIGHT_MAGENTA)
-        elif seconds < 3600:
-            minutes = int(seconds / 60)
-            secs = int(seconds % 60)
-            return self.colored(f"{minutes}m {secs}s", Colors.BRIGHT_MAGENTA)
-        else:
-            hours = int(seconds / 3600)
-            minutes = int((seconds % 3600) / 60)
-            return self.colored(f"{hours}h {minutes}m", Colors.BRIGHT_MAGENTA)
-
-    def _draw_progress_bar(self, percentage, width=None):
-        """Draw a colorful progress bar with the given percentage"""
-        if width is None:
-            width = self.progress_bar_width
-
-        completed_width = int(width * percentage / 100)
-        remaining_width = width - completed_width
-
-        # Gradient effect for progress bar based on completion percentage
-        if percentage < 30:
-            color = Colors.RED
-        elif percentage < 70:
-            color = Colors.YELLOW
-        else:
-            color = Colors.GREEN
-
-        if self.colors_enabled:
-            return f"[{color}{'━' * completed_width}{Colors.BRIGHT_BLACK}{'━' * remaining_width}{Colors.RESET}]"
-        else:
-            return f"[{'=' * completed_width}{' ' * remaining_width}]"
-
-    def _truncate_filename(self, filename, max_length=None):
-        """Truncate filename to fit in the display"""
-        if max_length is None:
-            max_length = self.max_filename_length
-
-        if len(filename) <= max_length:
-            return filename
-        # Keep extension
-        name, ext = os.path.splitext(filename)
-        trunc_len = max_length - len(ext) - 3  # 3 for '...'
-        if trunc_len < 1:
-            return filename[: max_length - 3] + "..."
-        return name[:trunc_len] + "..." + ext
-
-    def _draw_downloads(self):
-        """Draw the tracker display at the bottom of the terminal"""
-        now = time.time()
-        if now - self._last_draw_time < self._min_redraw_interval:
-            return
-
-        self._last_draw_time = now
-
-        with self.lock:
-            # Update download speeds
             for download_id, download in self.downloads.items():
                 if not download.completed:
+                    # Update iteration counter for spinner
+                    download.iteration = (download.iteration + 1) % len(self._spinning_chars)
+
+                    # Calculate speed
                     elapsed = now - download.last_update
                     if elapsed > 0:
                         download.speed = (download.downloaded_size - download.last_size) / elapsed
                         download.last_size = download.downloaded_size
                         download.last_update = now
 
+                    # Calculate ETA if we know the total size
                     if download.total_size > 0:
                         remaining_bytes = download.total_size - download.downloaded_size
                         if download.speed > 0:
@@ -300,78 +434,57 @@ class Tracker:
                         else:
                             download.eta = 0
 
-            # Sort downloads - active first, then by start time
-            sorted_downloads = sorted(self.downloads.values(), key=lambda d: (d.completed, -d.start_time))
+    def _draw_downloads(self):
+        """Draw the download status in the terminal"""
+        with self.lock:
+            # Get active downloads (not completed)
+            active_downloads = [d for d in self.downloads.values() if not d.completed]
 
-            # Only show active downloads
-            active_downloads = [d for d in sorted_downloads if not d.completed]
-            visible_downloads = active_downloads[: self._max_visible_downloads - 1]
-            hidden_downloads = (
-                active_downloads[self._max_visible_downloads - 1 :] if len(active_downloads) > self._max_visible_downloads - 1 else []
-            )
+            if not active_downloads and not self.queue:
+                return
 
-            # Prepare output lines
-            output_lines = []
+            # Format the status line for active downloads
+            if active_downloads:
+                status_parts = []
 
-            # Add visible download lines
-            for download in visible_downloads:
-                spinner = self._get_spinner() if not download.completed else self.colored("✓", Colors.BRIGHT_GREEN)
-                filename = self.colored(self._truncate_filename(download.filename), Colors.BOLD + Colors.BRIGHT_BLUE)
+                # Calculate total progress if possible
+                all_known_size = all(d.total_size > 0 for d in active_downloads)
+                if all_known_size:
+                    total_downloaded = sum(d.downloaded_size for d in active_downloads)
+                    total_size = sum(d.total_size for d in active_downloads)
+                    percent = min(100, int(total_downloaded / total_size * 100))
+                    progress_bar = self._draw_progress_bar(percent)
 
-                # Format download status line
-                if download.total_size > 0:
-                    # Show progress bar for known size
-                    percentage = min(100, int(download.downloaded_size / download.total_size * 100))
-                    progress_bar = self._draw_progress_bar(percentage)
-
-                    size_info = f"{self._format_size(download.downloaded_size)}/{self._format_size(download.total_size)}"
-                    eta_info = f"ETA: {self._format_time(download.eta)}" if download.eta > 0 else ""
-                    percentage_str = self.colored(f"{percentage}%", Colors.BOLD)
-
-                    status_line = (
-                        f"{spinner} {filename} {progress_bar} {percentage_str} {size_info} {self._format_speed(download.speed)} {eta_info}"
-                    )
+                    # Add progress info
+                    status_parts.append(f"⭳ :bold:{len(active_downloads)} active downloads")
+                    status_parts.append(f"{progress_bar} :white:{percent}%")
+                    status_parts.append(f"{self._format_size(total_downloaded)}/{self._format_size(total_size)}")
                 else:
                     # No progress bar for unknown size
-                    elapsed = time.time() - download.start_time
-                    clock_emoji = self.colored("🕒", Colors.BRIGHT_CYAN) if self.colors_enabled else "🕒"
-                    status_line = f"{spinner} {filename} {self._format_size(download.downloaded_size)} {clock_emoji} {self._format_time(elapsed)} {self._format_speed(download.speed)}"
+                    status_parts.append(f"⭳ :bold:{len(active_downloads)} active downloads")
 
-                # Truncate to terminal width
-                status_line = status_line[: self._terminal_width - 1]
-                output_lines.append(status_line)
+                # Add speed info
+                total_speed = sum(d.speed for d in active_downloads)
+                status_parts.append(f"{self._format_speed(total_speed)}")
 
-            # Add summary line for hidden downloads if needed
-            if hidden_downloads:
-                total_speed = sum(d.speed for d in hidden_downloads)
-                total_downloaded = sum(d.downloaded_size for d in hidden_downloads)
-                plus_sign = self.colored("+", Colors.BRIGHT_GREEN)
-                num_hidden = self.colored(f"{len(hidden_downloads)} more downloads:", Colors.BOLD)
-                summary_line = f"{plus_sign} {num_hidden} {self._format_size(total_downloaded)} total @ {self._format_speed(total_speed)}"
-                summary_line = summary_line[: self._terminal_width - 1]
-                output_lines.append(summary_line)
+                # Add spinner
+                status_parts.append(f":white::bold:{self._get_spinner()}")
 
-            # Draw to terminal
-            if output_lines:
-                # Save cursor position
-                sys.stdout.write("\033[s")
+                # Format status line
+                status_line = " ".join(status_parts)
 
-                # Move cursor to the bottom of the terminal
-                sys.stdout.write(f"\033[{self._terminal_height};0H")
+                # Print the status line
+                lprint(Terminal.apply_style(status_line), end="\r", highlight=False)
 
-                # Clear lines for the tracker
-                sys.stdout.write("\033[0J")
+            # Show queue status if there are queued downloads
+            if self.queue:
+                queue_status = f":gray:⌛ {len(self.queue)} downloads queued"
+                if active_downloads:
+                    # Print on a new line if we already have active downloads
+                    print()
+                lprint(Terminal.apply_style(queue_status), end="\r", highlight=False)
 
-                # Print output lines from bottom to top
-                for i, line in enumerate(reversed(output_lines)):
-                    row = self._terminal_height - i
-                    sys.stdout.write(f"\033[{row};0H{line}")
-
-                # Restore cursor position
-                sys.stdout.write("\033[u")
-                sys.stdout.flush()
-
-    def add_download(self, download_id, url, filename):
+    def add_download(self, download_id: str, url: str, filename: str):
         """Add a new download to be tracked"""
         if not self.enabled:
             return
@@ -381,7 +494,7 @@ class Tracker:
             if not self._running:
                 self.start()
 
-    def update_download(self, download_id, **kwargs):
+    def update_download(self, download_id: str, **kwargs):
         """Update the status of a download"""
         if not self.enabled or download_id not in self.downloads:
             return
@@ -392,7 +505,7 @@ class Tracker:
                 if hasattr(download, key):
                     setattr(download, key, value)
 
-    def complete_download(self, download_id, file_path=None):
+    def complete_download(self, download_id: str, file_path: Optional[str] = None):
         """Mark a download as completed"""
         if not self.enabled or download_id not in self.downloads:
             return
@@ -404,64 +517,75 @@ class Tracker:
             if file_path:
                 download.file_path = file_path
 
-            # If all downloads are completed, prepare to stop tracking
-            if all(d.completed for d in self.downloads.values()):
-                self._cleanup_completed()
+            # Calculate time taken
+            time_passed = time.time() - download.start_time
 
-    def remove_download(self, download_id):
-        """Remove a download from tracking"""
+            # Show completion message
+            self._show_completion_message(download, time_passed)
+
+            # Remove from tracking
+            self.downloads.pop(download_id, None)
+
+            # If no more downloads, stop tracking
+            if not self.downloads and not self.queue:
+                self.stop()
+
+    def remove_download(self, download_id: str):
+        """Remove a download from tracking without completion message"""
         if not self.enabled or download_id not in self.downloads:
             return
 
         with self.lock:
             self.downloads.pop(download_id, None)
 
-            # If all downloads are completed, prepare to stop tracking
-            if not self.downloads or all(d.completed for d in self.downloads.values()):
-                self._cleanup_completed()
+            # If no more downloads, stop tracking
+            if not self.downloads and not self.queue:
+                self.stop()
 
-    def _cleanup_completed(self):
-        """Clean up completed downloads and possibly stop the tracker"""
-        if not self.enabled:
+    def _show_completion_message(self, download: DownloadInfo, time_passed: float):
+        """Show download completion message"""
+        if not download.file_path:
             return
 
-        # Display the completion messages for any downloads
-        completed_downloads = {}
+        try:
+            file_size = os.path.getsize(download.file_path) / (1024 * 1024)
+
+            # Clear current line before printing completion message
+            print("\r" + " " * self._terminal_width, end="\r")
+
+            if self.should_show_path:
+                lprint(f":green:✔  :white:{download.filename}", f":green:{file_size:.2f}MB :cyan:{time_passed:.2f}s")
+            else:
+                folder = os.path.dirname(download.file_path)
+                lprint(f":green:✔  :white:{download.filename}", f":green:{file_size:.2f}MB :cyan:{time_passed:.2f}s")
+        except (OSError, IOError):
+            # Handle file access errors gracefully
+            pass
+
+    def add_to_queue(self, url: str):
+        """Add a download URL to the queue"""
         with self.lock:
-            for download_id, download in list(self.downloads.items()):
-                if download.completed:
-                    completed_downloads[download_id] = download
+            self.queue.append(url)
+            if not self._running:
+                self.start()
 
-            # Print completion messages
-            for download_id, download in completed_downloads.items():
-                if download.file_path:
-                    if self.should_show_path:
-                        check = self.colored("✓", Colors.BRIGHT_GREEN)
-                        filename = self.colored(download.filename, Colors.BOLD + Colors.BRIGHT_BLUE)
-                        path = self.colored(download.file_path, Colors.BRIGHT_CYAN)
-                        print(f"{check} Downloaded: {filename} -> {path}")
-                    else:
-                        folder = os.path.dirname(download.file_path)
-                        check = self.colored("✓", Colors.BRIGHT_GREEN)
-                        filename = self.colored(download.filename, Colors.BOLD + Colors.BRIGHT_BLUE)
-                        folder_path = self.colored(folder, Colors.BRIGHT_CYAN)
-                        print(f"{check} Downloaded: {filename} to {folder_path}")
+    def remove_from_queue(self, url: str):
+        """Remove a download URL from the queue"""
+        with self.lock:
+            if url in self.queue:
+                self.queue.remove(url)
 
-                # Remove from tracking
-                self.downloads.pop(download_id, None)
-
-        # If nothing left, stop the tracker
-        if not self.downloads:
-            self.stop()
+            # If no more downloads or queue items, stop tracking
+            if not self.downloads and not self.queue:
+                self.stop()
 
 
-# Initialize global tracker instance
-# Using lazy initialization to ensure config is properly loaded first
+# Global tracker instance
 tracker = None
 
 
 def get_tracker():
-    """Get the global tracker instance, initializing it if needed"""
+    """Get the global tracker instance, initializing if needed"""
     global tracker
     if tracker is None:
         from pybalt.core.config import Config
@@ -470,5 +594,5 @@ def get_tracker():
     return tracker
 
 
-# Initialize the tracker
+# Initialize tracker
 tracker = get_tracker()

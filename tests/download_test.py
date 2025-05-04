@@ -5,6 +5,7 @@ from pybalt import download
 
 YOUTUBE_TEST_LINK = "https://www.youtube.com/watch?v=EFsSYiNl2AQ"
 YOUTUBE_TEST_TITLE = "【Ado】ヒバナ 歌いました"
+YOUTUBE_TEST_PLAYLIST_LINK = "https://youtube.com/playlist?list=PL_93TBqf4ymQ7QcyWMPYJp_HtxMnb5XmB&si=YpqDhMDXYud_LgNS"
 
 
 @pytest.mark.asyncio
@@ -28,3 +29,47 @@ async def test_download_youtube():
 
     # Check if the file is not empty
     assert os.path.getsize(path) > 0, f"File {path} is empty"
+
+
+@pytest.mark.asyncio
+async def test_download_youtube_playlist():
+    # Download the playlist
+    downloaded = await download(YOUTUBE_TEST_PLAYLIST_LINK, filenameStyle="basic", videoQuality="1080", only_path=False, remux=False)
+    
+    # Check that we received a list of video results
+    assert isinstance(downloaded, list), "Playlist download should return a list of results"
+    assert len(downloaded) > 0, "No videos were processed from the playlist"
+    
+    # Extract paths from successful downloads
+    successful_downloads = [(url, path) for url, path, exc in downloaded if path is not None and exc is None]
+    
+    # Check if we got at least some successful downloads
+    assert len(successful_downloads) > 0, "No videos were successfully downloaded from the playlist"
+    
+    # Log information about successful and failed downloads
+    print(f"Successfully downloaded {len(successful_downloads)} out of {len(downloaded)} videos")
+    
+    # Check specific videos file sizes if they were downloaded
+    video_sizes = {
+        "9yUzR7_95t0": 104,  # Expected size ~104MB
+        "9sA_hDeNxeU": 16.6  # Expected size ~16.6MB
+    }
+    
+    for url, path, exc in downloaded:
+        if exc is not None:
+            continue
+            
+        video_id = url.split("=")[-1].split("&")[0]
+        
+        # Check if the file exists and has content
+        assert os.path.exists(path), f"File {path} does not exist"
+        assert os.path.getsize(path) > 0, f"File {path} is empty"
+        
+        size_mb = os.path.getsize(path) / 1024 / 1024
+        print(f"Video {video_id} downloaded to {path}, size: {size_mb:.2f}MB")
+        
+        # Check specific video sizes with 10% tolerance
+        if video_id in video_sizes:
+            expected_size = video_sizes[video_id]
+            tolerance = expected_size * 0.1  # 10% tolerance
+            assert abs(size_mb - expected_size) <= tolerance, f"Video {video_id} size {size_mb:.2f}MB differs significantly from expected {expected_size}MB"

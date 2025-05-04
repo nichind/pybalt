@@ -44,7 +44,7 @@ class Config:
             "download_retries": "2",
             "retry_delay": "0.5",
             "callback_rate": "1.000",
-            "max_concurrent_downloads": "5",
+            "max_concurrent_downloads": "2",
             "download_buffer_size": "1048576",  # equals to 1 Mb
             "bypass_proxy_for_localhost": "True",
             "progressive_timeout": "True",
@@ -145,7 +145,7 @@ class Config:
         """
         # Load environment variables from .env file if it exists
         load_dotenv()
-        
+
         # Check for environment variable first
         # This allows for overriding the default config directory
         if os.getenv("PYBALT_CONFIG_DIR") is not None:
@@ -154,7 +154,7 @@ class Config:
                 return config_folder_path
             else:
                 print(f"Warning: PYBALT_CONFIG_DIR points to a non-directory path: {config_folder_path}")
-    
+
         # Determine the platform and set the base path accordingly
         system = platform.system()
 
