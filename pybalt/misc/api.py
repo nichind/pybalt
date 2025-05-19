@@ -53,11 +53,11 @@ async def check_file_size(url, timeout=2):
             async with session.get(url, headers={"Range": "bytes=0-1024"}, timeout=timeout) as resp:
                 if resp.status == 206:  # Partial content (range request worked)
                     chunk = await resp.content.read(1024)
-                    if len(chunk) > 0:
+                    if len(chunk) > 64:
                         return True, instance_url
                 else:  # Range request not supported, read a small amount of data
                     chunk = await resp.content.read(1024)
-                    if len(chunk) > 0:
+                    if len(chunk) > 64:
                         return True, instance_url
                         
                 # If we got here, the file is empty or too small

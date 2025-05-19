@@ -1128,7 +1128,6 @@ class HttpClient:
                 or self.config.get_as_number("timeout", 10, section="network") * 2
             )  # 2x regular timeout as fallback
 
-        request_timeout = ClientTimeout(total=download_timeout)
         should_close = options.get("close", True)
         retry_count = options.get(
             "retry_count",
@@ -1157,7 +1156,7 @@ class HttpClient:
                 ssl_context = False
 
             # Create download request with proxy and SSL settings
-            download_kwargs = {"timeout": request_timeout, "ssl": ssl_context}
+            download_kwargs = {"ssl": ssl_context}
 
             # Add proxy if specified
             if request_proxy:
@@ -1316,6 +1315,7 @@ class HttpClient:
                                         downloaded_size > buffer_size * 5 if buffer_size * 5 < 1024 * 1024 * 100 else 1024 * 1024 * 100
                                     ):  # At least 5 times the download buffer size but not more than 100Mb
                                         logger.debug("Continuing download despite chunk timeout")
+                                        await sleep(0.5)  # Small sleep to avoid busy waiting
                                         continue
 
                                     # Otherwise, retry the whole download
