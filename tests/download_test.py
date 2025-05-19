@@ -5,7 +5,7 @@ from pybalt import download
 
 YOUTUBE_TEST_LINK = "https://www.youtube.com/watch?v=EFsSYiNl2AQ"
 YOUTUBE_TEST_TITLE = "【Ado】ヒバナ 歌いました"
-YOUTUBE_TEST_PLAYLIST_LINK = "https://youtube.com/playlist?list=PL_93TBqf4ymQ7QcyWMPYJp_HtxMnb5XmB&si=YpqDhMDXYud_LgNS"
+YOUTUBE_TEST_PLAYLIST_LINK = "https://youtube.com/playlist?list=PL_93TBqf4ymT89EVa7UxwpfUH6zrvkKWR&si=6NsPyYDIWARIj0d5"
 
 
 @pytest.mark.asyncio
