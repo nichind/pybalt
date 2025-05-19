@@ -26,6 +26,6 @@ jobs:
           python -m pip install -r requirements.txt
       - name: Build package
         run: |
-          python -m build
+          python -m pip -e .
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
