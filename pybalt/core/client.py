@@ -318,6 +318,20 @@ class HttpClient:
                             proxy_url = f"http://{host}:{port}"
                             logger.debug(f"Detected Linux (KDE) system proxy: {proxy_url}")
                             return proxy_url
+                        
+            # Try for hyprland
+            hyprland_config = path.expanduser("~/.config/hypr/hyprland.conf")
+            if path.exists(hyprland_config):
+                with open(hyprland_config, "r") as f:
+                    content = f.read()
+                    match = re.search(r"set\s+proxy\s*=\s*([^:]+):(\d+)", content)
+                    if not match:
+                        match = re.search(r"set\s+proxy\s*=\s*([^:]+)", content)
+                    if match:
+                        host, port = match.groups()
+                        proxy_url = f"http://{host}:{port}"
+                        logger.debug(f"Detected Linux (Hyprland) system proxy: {proxy_url}")
+                        return proxy_url
         except Exception as e:
             logger.debug(f"Error detecting Linux proxy: {str(e)}")
 
