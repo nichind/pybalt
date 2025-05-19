@@ -51,7 +51,7 @@ class Config:
         },
         "instances": {
             "instance_list_api": "https://instances.cobalt.best/api/instances.json",
-            "fallback_instance": "https://dwnld.nichind.dev",
+            "fallback_instance": "https://dwnld.nichind.dev",   
             "fallback_instance_api_key": "b05007aa-bb63-4267-a66e-78f8e10bf9bf",
             "api_key": "",  # Api key to try to use on every instance
         },
@@ -116,6 +116,7 @@ class Config:
 
         self.config = configparser.ConfigParser()
         self.config_path = self._get_config_path()
+        self._config_accessible = True  # Flag to track if config is accessible
         self.ensure_config_exists()
         self.load_config()
 
@@ -191,27 +192,47 @@ class Config:
         config_dir = self.config_path.parent
 
         # Create directory if it doesn't exist
-        if not config_dir.exists():
-            os.makedirs(config_dir, exist_ok=True)
+        try:
+            if not config_dir.exists():
+                os.makedirs(config_dir, exist_ok=True)
 
-        # Create config file with default settings if it doesn't exist
-        if not self.config_path.exists():
-            # Create each section with its values
-            for section, options in self.VALUES.items():
-                if section not in self.config:
-                    self.config[section] = {}
-                self.config[section].update(options)
+            # Create config file with default settings if it doesn't exist
+            if not self.config_path.exists():
+                # Create each section with its values
+                for section, options in self.VALUES.items():
+                    if section not in self.config:
+                        self.config[section] = {}
+                    self.config[section].update(options)
 
-            self.save_config()
+                self.save_config()
+        except (PermissionError, OSError):
+            # If we can't create the config file/directory due to permissions,
+            # mark config as inaccessible but continue with defaults
+            self._config_accessible = False
+            print(f"Warning: Cannot create config directory or file at {self.config_path}. Using default values.")
 
     def load_config(self) -> None:
         """Load the configuration from the file."""
-        self.config.read(self.config_path)
+        try:
+            if self.config_path.exists():
+                self.config.read(self.config_path)
+                self._config_accessible = True
+        except (PermissionError, OSError):
+            self._config_accessible = False
+            print(f"Warning: Cannot read config file at {self.config_path}. Using default values.")
 
     def save_config(self) -> None:
         """Save the current configuration to the file."""
-        with open(self.config_path, "w") as config_file:
-            self.config.write(config_file)
+        if not self._config_accessible:
+            print("Warning: Config file is not accessible. Changes will not be saved.")
+            return
+
+        try:
+            with open(self.config_path, "w") as config_file:
+                self.config.write(config_file)
+        except (PermissionError, OSError):
+            self._config_accessible = False
+            print(f"Warning: Cannot write to config file at {self.config_path}. Changes will not be saved.")
 
     def _find_section_for_key(self, option: str) -> Optional[str]:
         """Find which section a key belongs to if it's unique across sections."""
@@ -219,7 +240,7 @@ class Config:
 
     def get(self, option: str, fallback: Any = None, section: Optional[str] = None) -> Union[str, float, int, bool]:
         """
-        Get a configuration value.
+        Get a configuration value, checking environment variables first.
 
         Args:
             option: The option name.
@@ -236,19 +257,60 @@ class Config:
                 # If key isn't unique or doesn't exist, try misc as fallback
                 section = "misc"
 
+        # Check for environment variable override
+        if section:
+            env_var_name = f"PYBALT_{section.upper()}_{option.upper()}"
+            env_value = os.getenv(env_var_name)
+            if env_value is not None:
+                # If environment variable exists, use its value
+                value = env_value
+                
+                # Convert to number if the setting is in the NUMBER_SETTINGS list
+                if option in self.NUMBER_SETTINGS:
+                    try:
+                        # Try to convert to int or float based on the presence of a decimal point
+                        if "." in value or "," in value:
+                            # Replace comma with dot for locales that use comma as decimal separator
+                            numeric_value = float(value.replace(",", "."))
+                        else:
+                            # First try as int, if that fails try as float
+                            try:
+                                numeric_value = int(value)
+                            except (ValueError, TypeError):
+                                numeric_value = float(value)
+                        return numeric_value
+                    except (ValueError, TypeError):
+                        print(f"Warning: Failed to convert {option} value '{value}' from environment variable to number. Using as string.")
+                        return value
+
+                # Convert string boolean values to actual boolean types
+                if value.lower() in ("true", "false"):
+                    return value.lower() == "true"
+
+                return value
+
         value = None
 
-        # Try to get the value from the specified section
-        if self.config.has_section(section) or section == "misc":
-            value = self.config.get(section, option, fallback=None)
+        # If config is accessible, try to get the value from the file
+        if self._config_accessible:
+            # If no environment variable, try to get the value from the specified section
+            if self.config.has_section(section) or section == "misc":
+                value = self.config.get(section, option, fallback=None)
 
-        # If value not found and we're not already in misc, try misc
-        if value is None and section != "misc":
-            value = self.config.get("misc", option, fallback=None)
+            # If value not found and we're not already in misc, try misc
+            if value is None and section != "misc":
+                value = self.config.get("misc", option, fallback=None)
 
-        # If still no value, use the fallback
+        # If still no value, try to get the default value from VALUES
         if value is None:
-            value = fallback
+            if section in self.VALUES and option in self.VALUES[section]:
+                value = self.VALUES[section][option]
+            # If no default in the specified section, check misc
+            elif section != "misc" and "misc" in self.VALUES and option in self.VALUES["misc"]:
+                value = self.VALUES["misc"][option]
+            # Finally use the fallback
+            else:
+                value = fallback
 
         # Convert to number if the setting is in the NUMBER_SETTINGS list
         if option in self.NUMBER_SETTINGS and value is not None:

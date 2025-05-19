@@ -79,7 +79,7 @@ wheels = [
 
 [[package]]
 name = "pybalt"
-version = "2025.4.3"
+version = "2025.5.1"
 source = { editable = "." }
 
 [package.optional-dependencies]

@@ -726,8 +726,6 @@ class HttpClient:
         Yields:
             Response objects as they become available
         """
-        import asyncio
-
         # Check if bulk requests are allowed in config
         if not self.config.get("allow_bulk_download", True, section="misc"):
             raise Exception("Bulk requests are disabled in the configuration")
@@ -1044,8 +1042,6 @@ class HttpClient:
         Returns:
             asyncio.Task: The task handling the bulk download, which can be awaited or monitored
         """
-        import asyncio
-
         # Check if bulk downloads are allowed in config
         if not self.config.get("allow_bulk_download", True, section="misc"):
             raise Exception("Bulk downloads are disabled in configuration")
@@ -1441,8 +1437,6 @@ class HttpClient:
         Returns:
             asyncio.Task: The task handling the download, which can be awaited or monitored
         """
-        import asyncio
-
         # Apply configuration defaults if not explicitly provided
         if "folder_path" not in options:
             options["folder_path"] = self.config.get("default_downloads_dir", str(Path.home() / "Downloads"), section="paths")
