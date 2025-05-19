@@ -3,6 +3,7 @@ from ..misc.tracker import get_tracker
 
 manager = wrapper.InstanceManager()
 download = manager.download
+detached = manager
 remuxer = remux.Remuxer()
 remux = remuxer.remux
 tracker = get_tracker()

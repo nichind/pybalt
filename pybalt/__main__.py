@@ -1,15 +1,20 @@
 from asyncio import run
 from .core.wrapper import CobaltRequestParams, InstanceManager
-from .core.client import DownloadOptions
-from typing import _LiteralGenericAlias, List, Optional
+from typing import _LiteralGenericAlias
 from os.path import exists, isfile
-from time import time
 import argparse
-import sys
 from pathlib import Path
 from . import VERSION
 from .core import config
 from .core.remux import Remuxer
+import threading
+import subprocess
+import os
+import signal
+import sys
+import requests
+import time
+from .misc import api
 
 def create_parser():
     parser = argparse.ArgumentParser(description="pybalt - Your ultimate tool & python module to download videos and audio from various platforms. Supports YouTube, Instagram, Twitter (X), Reddit, TikTok, BiliBili & More! Powered by cobalt instances")
@@ -67,7 +72,7 @@ def create_parser():
     # Add instance management options
     instance_group = parser.add_argument_group('Instance management')
     instance_group.add_argument("-li", "--list-instances", action="store_true", help="List available instances")
-    instance_group.add_argument("-ai", "--add-instance", nargs=2, metavar=('URL', 'API_KEY'), help="Add a new instance with URL and optional API key")
+    instance_group.add_argument("-ai", "--add-instance", nargs='+', metavar=('URL', 'API_KEY'), help="Add a new instance with URL and optional API key")
     instance_group.add_argument("-ri", "--remove-instance", type=int, help="Remove instance by number")
     
     # Configuration commands
@@ -86,6 +91,13 @@ def create_parser():
     local_group.add_argument("-lstop", "--local-stop", action="store_true", help="Stop local instance")
     local_group.add_argument("-lrestart", "--local-restart", action="store_true", help="Restart local instance")
     local_group.add_argument("-lstatus", "--local-status", action="store_true", help="Check local instance status")
+    
+    # Add API management options
+    api_group = parser.add_argument_group('API management')
+    api_group.add_argument("--api-start", action="store_true", help="Start the API server in detached mode")
+    api_group.add_argument("--api-stop", action="store_true", help="Stop the running API server")
+    api_group.add_argument("--api-status", action="store_true", help="Check if the API server is running")
+    api_group.add_argument("--api-port", type=int, help="Set the port for the API server")
     
     return parser
 
@@ -118,10 +130,11 @@ async def download_url(url, args):
     manager = InstanceManager()
     try:
         del cobalt_params["url"]
+        print(download_opts)
         result = await manager.download(
             url=url,
             **download_opts,
-            **cobalt_params
+            **cobalt_params,
         )
         
         if result and isinstance(result, Path):
@@ -254,8 +267,10 @@ async def handle_instance_management(args):
             print("  No user-defined instances")
             
     elif args.add_instance:
-        url, api_key = args.add_instance
-        if not api_key or api_key.lower() == "none":
+        url = args.add_instance[0]
+        api_key = args.add_instance[1] if len(args.add_instance) > 1 else ""
+        
+        if api_key and api_key.lower() == "none":
             api_key = ""
         
         num = cfg.add_user_instance(url, api_key)
@@ -273,7 +288,6 @@ async def handle_config(args):
     
     if args.config:
         # Open configuration interface
-        import threading
         thread = threading.Thread(target=config.main, kwargs={"force_cli": True}, daemon=True)
         thread.start()
         thread.join()
@@ -287,6 +301,174 @@ async def handle_config(args):
         cfg.set(option, value, section)
         print(f"Set {section}.{option} to '{value}'")
 
+def get_api_pid_file():
+    """Get the path to the file storing the API process ID"""
+    cfg = config.Config()
+    config_dir = Path(cfg._get_config_dir())
+    return config_dir / "api_pid.txt"
+
+def save_api_pid(pid, port):
+    """Save the API process ID and port to a file"""
+    pid_file = get_api_pid_file()
+    with open(pid_file, "w") as f:
+        f.write(f"{pid}:{port}")
+
+def get_api_info():
+    """Get the saved API process ID and port"""
+    pid_file = get_api_pid_file()
+    if not pid_file.exists():
+        return None, None
+    
+    try:
+        with open(pid_file, "r") as f:
+            content = f.read().strip()
+            if ":" in content:
+                pid_str, port_str = content.split(":", 1)
+                return int(pid_str), int(port_str)
+            else:
+                return int(content), None
+    except (ValueError, FileNotFoundError):
+        return None, None
+
+def is_process_running(pid):
+    """Check if a process with the given PID is running"""
+    if pid is None:
+        return False
+    
+    try:
+        if sys.platform == "win32":
+            # Windows - use tasklist
+            output = subprocess.check_output(f"tasklist /FI \"PID eq {pid}\"", shell=True)
+            return str(pid) in output.decode()
+        else:
+            # Unix-like - check /proc or send signal 0
+            os.kill(pid, 0)
+            return True
+    except (subprocess.SubprocessError, OSError, ProcessLookupError):
+        return False
+
+async def handle_api_commands(args):
+    """Handle API management commands"""
+    cfg = config.Config()
+    
+    if args.api_port:
+        # Update the API port in the config
+        cfg.set("port", str(args.api_port), "api")
+        print(f"API port set to {args.api_port}")
+        
+        # If no other API command, return after setting the port
+        if not any([args.api_start, args.api_stop, args.api_status]):
+            return
+    
+    if args.api_start:
+        # Check if the API is already running
+        pid, port = get_api_info()
+        if pid and is_process_running(pid):
+            print(f"API is already running on port {port} (PID: {pid})")
+            return
+        
+        # Get the port to use
+        port = args.api_port or cfg.get_as_number("port", 8009, "api")
+        
+        # Start the API in a new process
+        cmd = [sys.executable, "-m", "pybalt.misc.api", str(port)]
+        
+        if sys.platform == "win32":
+            # On Windows, use CREATE_NEW_PROCESS_GROUP flag to create a detached process
+            process = subprocess.Popen(
+                cmd,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True
+            )
+        else:
+            # On Unix-like systems, use start_new_session
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True
+            )
+        
+        # Save the PID for later use
+        save_api_pid(process.pid, port)
+        
+        # Wait a moment for the server to start
+        time.sleep(1)
+        
+        # Check if the process is still running (didn't immediately exit with an error)
+        if is_process_running(process.pid):
+            print(f"API server started on port {port} (PID: {process.pid})")
+            print(f"You can access it at http://localhost:{port}")
+            print(f"Web UI available at http://localhost:{port}/ui")
+        else:
+            # If not running, try to capture any error output
+            _, stderr = process.communicate(timeout=1)
+            print(f"Failed to start API server: {stderr.decode().strip()}")
+    
+    elif args.api_stop:
+        pid, port = get_api_info()
+        if not pid:
+            print("No running API server found")
+            return
+        
+        if not is_process_running(pid):
+            print("API server is not running")
+            # Clean up stale PID file
+            if get_api_pid_file().exists():
+                get_api_pid_file().unlink()
+            return
+        
+        # Stop the process
+        try:
+            if sys.platform == "win32":
+                # On Windows, use taskkill
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=True)
+            else:
+                # On Unix-like systems, use kill
+                os.kill(pid, signal.SIGTERM)
+                # Wait a moment for graceful shutdown
+                time.sleep(1)
+                # Check if it's still running and force kill if needed
+                if is_process_running(pid):
+                    os.kill(pid, signal.SIGKILL)
+            
+            print(f"API server stopped (PID: {pid})")
+            
+            # Remove the PID file
+            if get_api_pid_file().exists():
+                get_api_pid_file().unlink()
+        except (subprocess.SubprocessError, OSError) as e:
+            print(f"Failed to stop API server: {e}")
+    
+    elif args.api_status:
+        pid, port = get_api_info()
+        if not pid:
+            print("No API server information found")
+            return
+        
+        if not is_process_running(pid):
+            print("API server is not running")
+            # Clean up stale PID file
+            if get_api_pid_file().exists():
+                get_api_pid_file().unlink()
+            return
+        
+        # Check if the API is actually responding
+        try:
+            response = requests.get(f"http://localhost:{port}/", timeout=2)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"API server is running on port {port} (PID: {pid})")
+                print(f"Version: {data.get('version', 'Unknown')}")
+                print(f"Instance count: {data.get('instance_count', 'Unknown')}")
+                print(f"Web UI available at http://localhost:{port}/ui")
+            else:
+                print(f"API server is running on port {port} (PID: {pid}) but returned status code {response.status_code}")
+        except requests.RequestException:
+            print(f"API server process is running (PID: {pid}) but not responding")
+
 async def main_async():
     parser = create_parser()
     args = parser.parse_args()
@@ -294,6 +476,11 @@ async def main_async():
     # Show version information
     if args.version:
         print(f"pybalt version {VERSION}")
+        return
+    
+    # Handle API management
+    if any([args.api_start, args.api_stop, args.api_status, args.api_port]):
+        await handle_api_commands(args)
         return
     
     # Handle local instance management

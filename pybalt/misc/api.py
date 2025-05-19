@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from asyncio import run, sleep, create_task
 import uvicorn
+import sys
 
 
 app = FastAPI()
@@ -1134,3 +1135,17 @@ HTML_TEMPLATE = (
 </html>
 """
 )
+
+# Main entry point for running the API directly
+if __name__ == "__main__":
+    # Check if port is provided as command line argument
+    port = None
+    if len(sys.argv) > 1:
+        try:
+            port = int(sys.argv[1])
+        except ValueError:
+            print(f"Invalid port: {sys.argv[1]}")
+            sys.exit(1)
+    
+    print(f"Starting pybalt API server on port {port or config.get_as_number('port', 8009, 'api')}")
+    run_api(port=port)

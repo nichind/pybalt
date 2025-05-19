@@ -684,7 +684,7 @@ class InstanceManager:
                         # Apply remuxing if requested
                         if remux and file_path:
                             try:
-                                remuxed_file_path = await Remuxer.remux(file_path)
+                                remuxed_file_path = await Remuxer().remux(file_path, keep_original=False)
                                 if remuxed_file_path:
                                     file_path = remuxed_file_path
                             except Exception as e:
