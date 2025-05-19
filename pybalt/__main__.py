@@ -58,6 +58,8 @@ def create_parser():
     download_group = parser.add_argument_group('Download options')
     download_group.add_argument("-r", "--remux", action="store_true", help="Remux downloaded file")
     download_group.add_argument("-ko", "--keep-original", action="store_true", help="Keep original file after remuxing")
+    download_group.add_argument("-o", "--open", action="store_true", help="Open file after download")
+    download_group.add_argument("-s", "--show", action="store_true", help="Show file in default viewer after download")
     download_group.add_argument("-fp", "--folder-path", type=str, help="Download folder path")
     download_group.add_argument("-t", "--timeout", type=int, help="Download timeout in seconds")
     download_group.add_argument("-pt", "--progressive-timeout", action="store_true", help="Enable progressive timeout")
@@ -122,11 +124,28 @@ async def download_url(url, args):
             **cobalt_params
         )
         
-        if args.remux and result and isinstance(result, Path):
-            # Remux the file if requested and download succeeded
-            print(f"Remuxing: {result}")
-            remuxed = Remuxer().remux(result, keep_original=args.keep_original)
-            print(f"Remuxed to: {remuxed}")
+        if result and isinstance(result, Path):
+            if args.remux:
+                # Remux the file if requested and download succeeded
+                print(f"Remuxing: {result}")
+                remuxed = Remuxer().remux(result, keep_original=args.keep_original)
+                print(f"Remuxed to: {remuxed}")
+                result = remuxed  # Update result to point to the remuxed file
+            
+            # Handle the open and show arguments
+            if args.open:
+                from .utils.file_operations import open_file
+                if open_file(result):
+                    print(f"Opened file: {result}")
+                else:
+                    print(f"Failed to open file: {result}")
+            
+            if args.show:
+                from .utils.file_operations import show_in_explorer
+                if show_in_explorer(result):
+                    print(f"Showing file in explorer: {result}")
+                else:
+                    print(f"Failed to show file in explorer: {result}")
         
         return result
     except Exception as e:
@@ -154,6 +173,22 @@ async def process_input(args):
             print(f"Remuxing file: {args.positional}")
             result = Remuxer().remux(args.positional, keep_original=args.keep_original)
             print(f"Remuxed to: {result}")
+            
+            # Handle the open and show arguments for remuxed files
+            if args.open:
+                from .utils.file_operations import open_file
+                if open_file(result):
+                    print(f"Opened file: {result}")
+                else:
+                    print(f"Failed to open file: {result}")
+            
+            if args.show:
+                from .utils.file_operations import show_in_explorer
+                if show_in_explorer(result):
+                    print(f"Showing file in explorer: {result}")
+                else:
+                    print(f"Failed to show file in explorer: {result}")
+                    
             return result
             # else:
             #     print("File exists but --remux not specified. Add --remux to remux the file.")
