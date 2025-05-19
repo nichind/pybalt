@@ -18,14 +18,18 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.11"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install setuptools wheel
-          pip install -r requirements.txt
+          python -m pip install setuptools wheel
+          python -m pip install -r requirements.txt
+      # - name: Run tests
+      #   run: |
+      #     python -m pip install pytest
+      #     python -m pytest --tb=short --disable-warnings
       - name: Build package
         run: |
-          python setup.py sdist bdist_wheel  # Could also be python -m build
+          python -m pip install -e .
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

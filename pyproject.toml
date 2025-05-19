@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pybalt"
+# Using dynamic versioning to get from pybalt.core.constants
+dynamic = ["version"]
+authors = [
+    {name = "nichind", email = "nichinddev@gmail.com"},
+]
+description = "☄️ Your ultimate tool & python module to download videos and audio from various platforms. Supports YouTube, Instagram, Twitter (X), Reddit, TikTok, BiliBili & More! Powered by cobalt instances"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+keywords = [
+    "downloader",
+    "cobalt",
+    "cobalt-cli",
+    "youtube",
+    "twitter",
+    "x",
+    "instagram",
+    "reddit",
+    "twitch",
+    "bilibili",
+    "download",
+    "youtube-downloader",
+    "twitter-downloader",
+    "x-downloader",
+    "instagram-downloader",
+    "reddit-downloader",
+    "twitch-downloader",
+    "bilibili-downloader",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/nichind/pybalt"
+"Issues" = "https://github.com/nichind/pybalt/issues"
+
+[project.scripts]
+pybalt = "pybalt.__main__:main"
+cobalt = "pybalt.__main__:main"
+
+[tool.setuptools]
+packages = ["pybalt"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pybalt.VERSION"}
+
+[tool.ruff]
+line-length = 140
