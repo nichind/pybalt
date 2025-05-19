@@ -489,8 +489,8 @@ class InstanceManager:
             try:
                 response = await self.client.bulk_post(
                     [{"url": instance.api_url, "api_key": instance.api_key} for instance in instances],
-                    json={
-                        "url": url,
+                    data={
+                        "url": url.replace("\\", ""),
                         **params,
                     },
                     headers=headers,

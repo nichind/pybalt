@@ -511,6 +511,7 @@ class HttpClient:
         # Debug logging
         logger.debug(f"Request: {method.upper()} {full_url}")
         logger.debug(f"Headers: {request_headers}")
+            
         if params:
             logger.debug(f"Params: {params}")
         if data:
@@ -543,8 +544,8 @@ class HttpClient:
                 if method == "get":
                     session_kwargs["params"] = params
                 else:
-                    session_kwargs["json"] = data
-
+                    session_kwargs["json"] = data or kwargs.pop("json", None)
+                # exit()
                 session_kwargs.update(kwargs)
 
                 request_start_time = time()
@@ -589,7 +590,7 @@ class HttpClient:
                     try:
                         response_text = await response.text()
                         response_obj._text = response_text
-                        logger.debug(f"Response text (preview): {response_text[:200]}...")
+                        logger.debug(f"Response text (preview): {response_text[:350]}...")
 
                         try:
                             response_obj._json = await response.json()

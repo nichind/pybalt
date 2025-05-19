@@ -1318,7 +1318,7 @@ async def async_main():
         print("Use the command-line interface instead (get/set/list commands).")
 
 
-def main():
+def main(force_cli: bool = False):
     """
     Main entry point for the configuration CLI utility.
     """
@@ -1338,7 +1338,7 @@ def main():
     config = Config()
     config.ensure_default_keys_exist()
 
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and not force_cli:
         cmd = sys.argv[1]
 
         if cmd == "get" and len(sys.argv) >= 4:
