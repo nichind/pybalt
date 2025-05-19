@@ -47,9 +47,6 @@ keywords = [
 pybalt = "pybalt.__main__:main"
 cobalt = "pybalt.__main__:main"
 
-[project.optional-dependencies]
-web = ["fastapi", "uvicorn"]
-
 [tool.setuptools]
 packages = ["pybalt"]
 
