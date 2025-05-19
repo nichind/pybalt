@@ -502,7 +502,8 @@ class InstanceManager:
                 if responding_instance:
                     if "instance_info" not in data:
                         data["instance_info"] = {}
-                    data["instance_info"]["url"] = responding_instance
+                    if data['instance_info'].get("url", None) is None:
+                        data["instance_info"]["url"] = responding_instance
 
                 if data.get("status", "") == "tunnel":
                     # Handle URL in response that might be local
@@ -514,11 +515,13 @@ class InstanceManager:
                             or any(response_url.lower().startswith(f"http://{pattern}") for pattern in ["192.168.", "10.", "172.16."])
                         ):
                             # Get the instance that responded
-                            instance_url = response.url.strip()
+                            instance_url = data["instance_info"]["url"]
+                            if "http" not in instance_url:
+                                instance_url = f"http://{instance_url}"
                             # Extract the base URL of the instance
                             instance_base = "/".join(instance_url.split("/")[:3])  # Get protocol and host part
                             # Only replace if not using a local instance intentionally
-                            if not (self.local_instance and self.local_instance.api_url in instance_url) and not data.get("instance_info", {}).get("url", None):
+                            if not (self.local_instance and self.local_instance.api_url in instance_url):
                                 path_part = "/" + "/".join(response_url.split("/")[3:]) if len(response_url.split("/")) > 3 else ""
                                 data["url"] = f"{instance_base}{path_part}"
                                 logger.debug(f"Replaced local URL {response_url} with {data['url']}")
