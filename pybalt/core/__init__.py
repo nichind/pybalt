@@ -7,4 +7,4 @@ remuxer = remux.Remuxer()
 remux = remuxer.remux
 tracker = get_tracker()
 
-__all__ = [client, local_instance, config, wrapper, manager, download, remuxer, remux, tracker]
+__all__ = ['client', 'local_instance', 'config', 'wrapper', 'manager', 'download', 'remuxer', 'remux', 'tracker']
