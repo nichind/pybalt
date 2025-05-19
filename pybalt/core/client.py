@@ -1473,7 +1473,10 @@ class HttpClient:
                     from pytube import Playlist
 
                     logger.debug("Extracting playlist using pytube")
-                    playlist = Playlist(url, proxies={"https": self._get_effective_proxy(url)})
+                    proxies = {"https": self._get_effective_proxy(url)} if self._get_effective_proxy(url) else None
+                    if proxies:
+                        logger.debug(f"Using proxy for playlist extraction: {proxies}")
+                    playlist = Playlist(url, proxies=proxies)
                     # Check if the playlist is empty
                     if not playlist.video_urls:
                         logger.debug("The playlist is empty.")

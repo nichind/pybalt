@@ -566,7 +566,7 @@ class InstanceManager:
         only_path: bool = True,
         remux: bool = False,
         min_file_size: int = 1024,  # Default 1KB minimum size
-        max_retries: int = 3,  # Prevent infinite retry loops
+        max_retries: int = None,  # Prevent infinite retry loops
         **params: Unpack[CobaltRequestParams],
     ) -> AsyncGenerator[Path | Tuple[str, Optional[Path], Optional[Exception]], None]:
         """
@@ -592,6 +592,9 @@ class InstanceManager:
         urls = urls or [url]
         if not urls:
             raise ValueError("Either url or urls must be provided")
+
+        # Check max_retries
+        max_retries = max_retries or self.config.get_as_number("max_retriest_tunnel", 10, section="network")
 
         if urls and len(urls) > 1 and not self.config.get("allow_bulk_download", True, section="misc"):
             raise ValueError("Bulk downloads are disabled in configuration")
