@@ -85,6 +85,8 @@ class Config:
             "max_filename_length": "32",
             "progress_bar_width": "20",
             "max_visible_items": "4",
+            "draw_interval": "0.4",
+            "min_redraw_interval": "0.1",
         },
     }
 
@@ -107,6 +109,8 @@ class Config:
         "last_update_check",
         "update_check_interval",
         "duration_limit",
+        "draw_interval",
+        "min_redraw_interval",
     }
 
     def __init__(self):
