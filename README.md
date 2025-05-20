@@ -401,6 +401,9 @@ The API server exposes the following endpoints:
 
 ## Web UI
 
+![image](https://github.com/user-attachments/assets/a0d81cf1-ffbf-48b1-845c-e2eb70332b30)
+
+
 The API server includes a comprehensive web UI that allows you to:
 
 - Download videos from various platforms through a user-friendly interface
