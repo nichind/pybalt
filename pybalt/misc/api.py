@@ -2,9 +2,13 @@ from .. import core, VERSION
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from asyncio import run, sleep, create_task
+from asyncio import run, sleep, create_task, wait_for, TimeoutError
 import uvicorn
 import sys
+import aiohttp
+import tempfile
+import os
+from pathlib import Path
 
 
 app = FastAPI()
@@ -21,17 +25,96 @@ async def root(request: Request):
     }
 
 
+async def check_file_size(url, timeout=2):
+    """
+    Quickly check if a file has non-zero size by starting to download it.
+    
+    Args:
+        url: URL to check
+        timeout: Maximum time to spend checking in seconds
+    
+    Returns:
+        Tuple of (is_valid, instance_url) where:
+        - is_valid: True if file has non-zero size, False otherwise
+        - instance_url: The hostname of the instance that provided the file
+    """
+    try:
+        # Extract instance hostname from URL
+        instance_url = url.split('/')[2] if '://' in url else None
+        
+        # Create a temporary file for the download
+        temp_file = Path(tempfile.gettempdir()) / f"pybalt_check_{os.urandom(4).hex()}"
+        
+        async with aiohttp.ClientSession() as session:
+            # Get the headers first to check if the server accepts range requests
+            head_resp = await wait_for(session.head(url), timeout=timeout/2)
+            
+            # Try to download just the first few bytes
+            async with session.get(url, headers={"Range": "bytes=0-1024"}, timeout=timeout) as resp:
+                if resp.status == 206:  # Partial content (range request worked)
+                    chunk = await resp.content.read(1024)
+                    if len(chunk) > 0:
+                        return True, instance_url
+                else:  # Range request not supported, read a small amount of data
+                    chunk = await resp.content.read(1024)
+                    if len(chunk) > 0:
+                        return True, instance_url
+                        
+                # If we got here, the file is empty or too small
+                return False, instance_url
+                
+    except (TimeoutError, aiohttp.ClientError, Exception) as e:
+        # If there's any error, assume there's an issue with the file
+        return False, instance_url
+
+
 @app.post("/")
 async def post(request: Request):
     data = await request.json()
     url = data.get("url", None)
     ignored_instances = data.get("ignoredInstances", [])
-    if ignored_instances != []:
-        del data["ignoredInstances"]
+    
     if url is None:
         return {"error": "URL not provided"}
-    del data["url"]
-    return JSONResponse(await manager.first_tunnel(url, ignored_instances=ignored_instances, **data))
+    
+    # Create a copy of data without the URL for passing to first_tunnel
+    request_params = data.copy()
+    if "url" in request_params:
+        del request_params["url"]
+    if "ignoredInstances" in request_params:
+        del request_params["ignoredInstances"]
+    
+    # Set maximum retries to avoid excessive delay
+    max_retries = 3
+    retries = 0
+    
+    while retries < max_retries:
+        # Try to get a response from the first available instance
+        response = await manager.first_tunnel(url, ignored_instances=ignored_instances, **request_params)
+        
+        # If not a tunnel response or reached max retries, return whatever we got
+        if response.get("status") != "tunnel" or retries >= max_retries - 1:
+            return JSONResponse(response)
+        
+        # For tunnel responses, quickly check if the file has content
+        download_url = response.get("url")
+        if download_url:
+            is_valid, instance_url = await check_file_size(download_url)
+            
+            if is_valid:
+                # File looks good, return the response
+                return JSONResponse(response)
+            elif instance_url and instance_url not in ignored_instances:
+                # File is empty, add the instance to ignored list and retry
+                ignored_instances.append(instance_url)
+                retries += 1
+                continue
+        
+        # If we couldn't check the file or no URL was provided, return the response
+        return JSONResponse(response)
+    
+    # If we exhausted retries, return the last response
+    return JSONResponse(response)
 
 
 @app.get("/ui", response_class=HTMLResponse)

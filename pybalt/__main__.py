@@ -130,7 +130,6 @@ async def download_url(url, args):
     manager = InstanceManager()
     try:
         del cobalt_params["url"]
-        print(download_opts)
         result = await manager.download(
             url=url,
             **download_opts,
