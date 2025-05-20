@@ -218,7 +218,7 @@ class Tracker:
         self._draw_thread = None
         self._visible = False
         self._last_draw_time = 0
-        self._min_redraw_interval = 0.1  # seconds
+        self._min_redraw_interval = self.config.get_as_number("min_redraw_interval", 0.1, "display")  # seconds
 
         # Spinner frames for animation
         self._spinning_chars = ["⢎⡰", "⢎⡡", "⢎⡑", "⢎⠱", "⠎⡱", "⢊⡱", "⢌⡱", "⢆⡱"]
@@ -408,7 +408,7 @@ class Tracker:
             except Exception:
                 # Silently handle drawing errors
                 pass
-            time.sleep(0.1)
+            time.sleep(float(self.config.get("draw_interval", 0.4, "display")))
 
     def _update_downloads(self, now: float):
         """Update download speeds and ETAs"""
@@ -465,6 +465,10 @@ class Tracker:
                 # Add speed info
                 total_speed = sum(d.speed for d in active_downloads)
                 status_parts.append(f"{self._format_speed(total_speed)}")
+                
+                # Add downloaded file size info for all downloads, including finished ones
+                total_downloaded = sum(d.downloaded_size for d in [d for d in self.downloads.values()])
+                status_parts.append(f"{self._format_size(total_downloaded)}")
 
                 # Add spinner
                 status_parts.append(f":white::bold:{self._get_spinner()}")

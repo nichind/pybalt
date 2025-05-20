@@ -47,7 +47,7 @@ class Config:
             "max_concurrent_downloads": "2",
             "download_buffer_size": "1048576",  # equals to 1 Mb
             "bypass_proxy_for_localhost": "True",
-            "progressive_timeout": "True",
+            "progressive_timeout": "False",
         },
         "instances": {
             "instance_list_api": "https://instances.cobalt.best/api/instances.json",
@@ -85,6 +85,8 @@ class Config:
             "max_filename_length": "32",
             "progress_bar_width": "20",
             "max_visible_items": "4",
+            "draw_interval": "0.4",
+            "min_redraw_interval": "0.1",
         },
     }
 
@@ -107,6 +109,8 @@ class Config:
         "last_update_check",
         "update_check_interval",
         "duration_limit",
+        "draw_interval",
+        "min_redraw_interval",
     }
 
     def __init__(self):
