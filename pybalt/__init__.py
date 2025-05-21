@@ -11,7 +11,7 @@ from .core import (
 from .misc.tracker import tracker
 from .misc.tracker import get_tracker
 
-VERSION = "2025.5.7"
+VERSION = "2025.5.8"
 
 # Initialize tracker
 tracker = get_tracker()

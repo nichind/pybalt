@@ -1477,6 +1477,10 @@ class HttpClient:
             # Check if it's a playlist
             playlist_id_match = re.findall(r"[&?]list=([^&]+)", url)
             if playlist_id_match:
+                # Check if this is just a video link with a playlist ID
+                if "?v=" in url:
+                    return [url]
+                    
                 logger.debug(f"Detected YouTube playlist ID: {playlist_id_match[0]}")
                 try:
                     from pytube import Playlist
