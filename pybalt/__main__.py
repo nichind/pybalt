@@ -98,6 +98,10 @@ def create_parser():
     api_group.add_argument("--api-stop", action="store_true", help="Stop the running API server")
     api_group.add_argument("--api-status", action="store_true", help="Check if the API server is running")
     api_group.add_argument("--api-port", type=int, help="Set the port for the API server")
+
+    # Misc arguments
+    misc_group = parser.add_argument_group('Miscellaneous')
+    misc_group.add_argument("-y", "--yes", action="store_true", help="Automatically answer yes to prompts")
     
     return parser
 
@@ -268,6 +272,14 @@ async def handle_instance_management(args):
     elif args.add_instance:
         url = args.add_instance[0]
         api_key = args.add_instance[1] if len(args.add_instance) > 1 else ""
+        
+        clean_url = url.strip().replace("http://", "").replace("https://", "")
+        if clean_url in [instance.get("url", "").strip().replace("http://", "").replace("https://", "") for instance in cfg.get_user_instances()]:
+            # If --yes flag is provided, skip confirmation
+            if not args.yes:
+                response = input("There's already an instance with the same URL in the config, still add? Skip the confirmation with --yes (Y/n): ").lower()
+                if response not in ["", "y"]:  # Default to yes if empty
+                    return
         
         if api_key and api_key.lower() == "none":
             api_key = ""

@@ -85,7 +85,7 @@ class Config:
             "max_filename_length": "32",
             "progress_bar_width": "20",
             "max_visible_items": "4",
-            "draw_interval": "0.4",
+            "draw_interval": "0.3",
             "min_redraw_interval": "0.1",
         },
     }

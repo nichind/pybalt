@@ -19,6 +19,7 @@ from pathlib import Path
 import logging
 import asyncio
 from ipaddress import ip_address
+import os
 
 
 logger = get_logger(__name__)
@@ -571,7 +572,7 @@ class InstanceManager:
         min_file_size: int = 1024,  # Default 1KB minimum size
         max_retries: int = None,  # Prevent infinite retry loops
         **params: Unpack[CobaltRequestParams],
-    ) -> AsyncGenerator[Path | Tuple[str, Optional[Path], Optional[Exception]], None]:
+    ) -> AsyncGenerator[Path | List[Path] | Tuple[str, Optional[Path | List[Path]], Optional[Exception]], None]:
         """
         Download multiple files from Cobalt, yielding results as they complete.
 
@@ -588,7 +589,7 @@ class InstanceManager:
         Yields:
             Tuples of (url, file_path, exception) where:
             - url is the original URL requested
-            - file_path is the Path to the downloaded file (None if failed)
+            - file_path is the Path to the downloaded file, or if the response was a picker, a list of Paths (None if failed)
             - exception is the exception that occurred (None if successful)
         """
         # Check if bulk download is allowed in config
@@ -695,8 +696,83 @@ class InstanceManager:
                                 logger.debug(f"Error remuxing file {file_path}: {e}")
 
                         return url, file_path, None
+                    elif response.get("status", "") == "picker":
+                        logger.debug(f"Picker response detected for {url} with {len(response.get('picker', []))} items")
+                        
+                        # Get the instance that responded
+                        responding_instance = response.get("instance_info", {}).get("url")
+                        
+                        # Handle picker response - download all items
+                        picker_items = response.get("picker", [])
+                        downloaded_paths = []
+                        download_errors = []
+                        
+                        # Helper function to truncate long filenames while preserving extension
+                        def safe_filename(url_str, max_length=200):
+                            # Extract original filename from URL
+                            basename = os.path.basename(url_str.split('?')[0])
+                            
+                            # Split into name and extension
+                            name, ext = os.path.splitext(basename)
+                            
+                            # If filename is too long, truncate the name part
+                            if len(basename) > max_length:
+                                # Make sure we leave enough room for the extension
+                                truncated_name = name[:max_length - len(ext) - 1]
+                                return f"{truncated_name}{ext}"
+                            return basename
+                        
+                        # Download each picker item
+                        for idx, item in enumerate(picker_items):
+                            item_url = item.get("url")
+                            if not item_url:
+                                continue
+                                
+                            # Create a descriptive filename that's not too long
+                            item_type = item.get("type", "media")
+                            # Generate a filename with an index to keep items in order
+                            raw_filename = safe_filename(item_url)
+                            item_filename = f"{url.split('/')[-1].split('?')[0][:30]}_{item_type}_{idx+1:02d}_{raw_filename[-40:]}"
+                            
+                            try:
+                                # Create a download task for this item
+                                download_task = await self.client.detached_download(
+                                    url=item_url,
+                                    filename=item_filename,
+                                    timeout=self.config.get("download_timeout", 60),
+                                    progressive_timeout=True,
+                                )
+                                
+                                file_path = await download_task
+                                
+                                # Check if file is a "ghost file" (too small)
+                                if file_path and file_path.exists():
+                                    file_size = file_path.stat().st_size
+                                    if file_size < min_file_size:
+                                        logger.warning(f"Ghost file detected for picker item {idx+1}: {file_path} ({file_size} bytes)")
+                                        try:
+                                            file_path.unlink()
+                                        except Exception as e:
+                                            logger.debug(f"Failed to delete ghost file {file_path}: {e}")
+                                        continue
+                                
+                                # Add to list of downloaded paths if successful
+                                if file_path:
+                                    downloaded_paths.append(file_path)
+                                    logger.debug(f"Downloaded picker item {idx+1}/{len(picker_items)}: {file_path}")
+                            except Exception as e:
+                                logger.debug(f"Failed to download picker item {idx+1}: {e}")
+                                download_errors.append(e)
+                        
+                        # If we downloaded at least one file, consider it a success
+                        if downloaded_paths:
+                            return url, downloaded_paths, None
+                        else:
+                            # If all downloads failed, return an error
+                            error_msg = f"Failed to download any files from picker response ({len(download_errors)} errors)"
+                            return url, None, ValueError(error_msg)
                     else:
-                        # Handle picker responses or other status types
+                        # Handle other status types
                         error = ValueError(f"Unsupported response status: {response.get('status')}")
                         return url, None, error
                 except Exception as e:
