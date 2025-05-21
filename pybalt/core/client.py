@@ -318,7 +318,7 @@ class HttpClient:
                             proxy_url = f"http://{host}:{port}"
                             logger.debug(f"Detected Linux (KDE) system proxy: {proxy_url}")
                             return proxy_url
-                        
+
             # Try for hyprland
             hyprland_config = path.expanduser("~/.config/hypr/hyprland.conf")
             if path.exists(hyprland_config):
@@ -511,7 +511,7 @@ class HttpClient:
         # Debug logging
         logger.debug(f"Request: {method.upper()} {full_url}")
         logger.debug(f"Headers: {request_headers}")
-            
+
         if params:
             logger.debug(f"Params: {params}")
         if data:
@@ -1480,7 +1480,7 @@ class HttpClient:
                 # Check if this is just a video link with a playlist ID
                 if "?v=" in url:
                     return [url]
-                    
+
                 logger.debug(f"Detected YouTube playlist ID: {playlist_id_match[0]}")
                 try:
                     from pytube import Playlist

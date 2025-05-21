@@ -8,23 +8,14 @@ from .core import (
     download,
     remuxer,
 )
-from .misc.tracker import tracker
 from .misc.tracker import get_tracker
 
-VERSION = "2025.5.9"
+VERSION = "2025.5.10"
 
 # Initialize tracker
 tracker = get_tracker()
 
-__all__ = [
-    VERSION,
-    client,
-    local_instance,
-    config,
-    wrapper,
-    manager,
-    download,
-    remuxer,
-    remux,
-    tracker,
-]
+# Backwards compatibility
+Cobalt = wrapper.Cobalt
+
+__all__ = [VERSION, client, local_instance, config, wrapper, manager, download, remuxer, remux, tracker, Cobalt]

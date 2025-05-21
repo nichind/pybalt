@@ -503,7 +503,7 @@ class InstanceManager:
                 if responding_instance:
                     if "instance_info" not in data:
                         data["instance_info"] = {}
-                    if data['instance_info'].get("url", None) is None:
+                    if data["instance_info"].get("url", None) is None:
                         data["instance_info"]["url"] = responding_instance
 
                 if data.get("status", "") == "tunnel":
@@ -698,42 +698,42 @@ class InstanceManager:
                         return url, file_path, None
                     elif response.get("status", "") == "picker":
                         logger.debug(f"Picker response detected for {url} with {len(response.get('picker', []))} items")
-                        
+
                         # Get the instance that responded
                         responding_instance = response.get("instance_info", {}).get("url")
-                        
+
                         # Handle picker response - download all items
                         picker_items = response.get("picker", [])
                         downloaded_paths = []
                         download_errors = []
-                        
+
                         # Helper function to truncate long filenames while preserving extension
                         def safe_filename(url_str, max_length=200):
                             # Extract original filename from URL
-                            basename = os.path.basename(url_str.split('?')[0])
-                            
+                            basename = os.path.basename(url_str.split("?")[0])
+
                             # Split into name and extension
                             name, ext = os.path.splitext(basename)
-                            
+
                             # If filename is too long, truncate the name part
                             if len(basename) > max_length:
                                 # Make sure we leave enough room for the extension
-                                truncated_name = name[:max_length - len(ext) - 1]
+                                truncated_name = name[: max_length - len(ext) - 1]
                                 return f"{truncated_name}{ext}"
                             return basename
-                        
+
                         # Download each picker item
                         for idx, item in enumerate(picker_items):
                             item_url = item.get("url")
                             if not item_url:
                                 continue
-                                
+
                             # Create a descriptive filename that's not too long
                             item_type = item.get("type", "media")
                             # Generate a filename with an index to keep items in order
                             raw_filename = safe_filename(item_url)
                             item_filename = f"{url.split('/')[-1].split('?')[0][:30]}_{item_type}_{idx+1:02d}_{raw_filename[-40:]}"
-                            
+
                             try:
                                 # Create a download task for this item
                                 download_task = await self.client.detached_download(
@@ -742,9 +742,9 @@ class InstanceManager:
                                     timeout=self.config.get("download_timeout", 60),
                                     progressive_timeout=True,
                                 )
-                                
+
                                 file_path = await download_task
-                                
+
                                 # Check if file is a "ghost file" (too small)
                                 if file_path and file_path.exists():
                                     file_size = file_path.stat().st_size
@@ -755,7 +755,7 @@ class InstanceManager:
                                         except Exception as e:
                                             logger.debug(f"Failed to delete ghost file {file_path}: {e}")
                                         continue
-                                
+
                                 # Add to list of downloaded paths if successful
                                 if file_path:
                                     downloaded_paths.append(file_path)
@@ -763,7 +763,7 @@ class InstanceManager:
                             except Exception as e:
                                 logger.debug(f"Failed to download picker item {idx+1}: {e}")
                                 download_errors.append(e)
-                        
+
                         # If we downloaded at least one file, consider it a success
                         if downloaded_paths:
                             return url, downloaded_paths, None
@@ -883,3 +883,20 @@ class InstanceManager:
         if not isinstance(results, list):
             return results
         return results if len(results) > 1 else results[0]
+
+
+class Cobalt:
+    """
+    Backward compatibility class
+    This class is deprecated and will be removed in future versions.
+    Use InstanceManager instead.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.manager = InstanceManager()
+        print(f"DeprecationWarning: Cobalt class is deprecated, use InstanceManager instead")
+        print(f"This was deprecated in version 2025.5, please read the docs for more information. github.com/nichind/pybalt")
+
+    async def download(self, *args, **kwargs):
+        """Download a file using the deprecated Cobalt class"""
+        return await self.manager.download(*args, **kwargs)

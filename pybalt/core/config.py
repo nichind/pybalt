@@ -52,7 +52,7 @@ class Config:
         },
         "instances": {
             "instance_list_api": "https://instances.cobalt.best/api/instances.json",
-            "fallback_instance": "https://dwnld.nichind.dev",   
+            "fallback_instance": "https://dwnld.nichind.dev",
             "fallback_instance_api_key": "b05007aa-bb63-4267-a66e-78f8e10bf9bf",
             "api_key": "",  # Api key to try to use on every instance
         },
@@ -269,7 +269,7 @@ class Config:
             if env_value is not None:
                 # If environment variable exists, use its value
                 value = env_value
-                
+
                 # Convert to number if the setting is in the NUMBER_SETTINGS list
                 if option in self.NUMBER_SETTINGS:
                     try:
@@ -368,7 +368,7 @@ class Config:
                 # If section is not provided, try to determine it for unique keys
                 if section is None:
                     section = self._find_section_for_key(option)
-                
+
                 # Try to get the default value from VALUES
                 if section and section in self.VALUES and option in self.VALUES[section]:
                     default_str = self.VALUES[section][option]
@@ -382,7 +382,7 @@ class Config:
                         return default_value
                     except (ValueError, TypeError):
                         print(f"Warning: Both user value '{value}' and default value '{default_str}' for '{option}' are invalid numbers.")
-            
+
             if isinstance(fallback, (int, float)):
                 print(f"Warning: Failed to convert '{option}' value '{value}' to number. Using fallback: {fallback}")
                 return fallback

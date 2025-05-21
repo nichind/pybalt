@@ -465,7 +465,7 @@ class Tracker:
                 # Add speed info
                 total_speed = sum(d.speed for d in active_downloads)
                 status_parts.append(f"{self._format_speed(total_speed)}")
-                
+
                 # Add downloaded file size info for all downloads, including finished ones
                 total_downloaded = sum(d.downloaded_size for d in [d for d in self.downloads.values()])
                 status_parts.append(f"{self._format_size(total_downloaded)}")
