@@ -71,12 +71,11 @@ class Config:
         "ffmpeg": {"remux_args": "-hwaccel opencl", "keep_original": "True"},
         "api": {"port": "8009", "update_period": "120"},
         "misc": {
-            "ignore_updates": "False",
             "last_update_check": "0",
             "update_check_interval": "86400",
             "update_check_enabled": "True",
-            "update_check_last_version": "",
             "allow_bulk_download": "True",
+            "last_thank": "0",
         },
         "display": {
             "enable_tracker": "True",
@@ -111,6 +110,7 @@ class Config:
         "duration_limit",
         "draw_interval",
         "min_redraw_interval",
+        "last_thank",
     }
 
     def __init__(self):
@@ -362,9 +362,30 @@ class Config:
             except (ValueError, TypeError):
                 return float(value)
         except (ValueError, TypeError):
+            # If conversion fails and this is a NUMBER_SETTING, try to get the default value
+            if option in self.NUMBER_SETTINGS:
+                # If section is not provided, try to determine it for unique keys
+                if section is None:
+                    section = self._find_section_for_key(option)
+                
+                # Try to get the default value from VALUES
+                if section and section in self.VALUES and option in self.VALUES[section]:
+                    default_str = self.VALUES[section][option]
+                    try:
+                        # Convert the default string value to a number
+                        if "." in default_str:
+                            default_value = float(default_str)
+                        else:
+                            default_value = int(default_str)
+                        print(f"Warning: Failed to convert '{option}' value '{value}' to number. Using default: {default_value}")
+                        return default_value
+                    except (ValueError, TypeError):
+                        print(f"Warning: Both user value '{value}' and default value '{default_str}' for '{option}' are invalid numbers.")
+            
             if isinstance(fallback, (int, float)):
+                print(f"Warning: Failed to convert '{option}' value '{value}' to number. Using fallback: {fallback}")
                 return fallback
-            print(f"Warning: Failed to convert {option} value '{value}' to number. Using 0.")
+            print(f"Warning: Failed to convert '{option}' value '{value}' to number. Using 0.")
             return 0
 
     def set(self, option: str, value: str, section: Optional[str] = None) -> None:

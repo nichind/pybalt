@@ -480,9 +480,67 @@ async def handle_api_commands(args):
         except requests.RequestException:
             print(f"API server process is running (PID: {pid}) but not responding")
 
+def check_for_updates():
+    """Check for updates to pybalt on PyPI"""
+    cfg = config.Config()
+    
+    # Skip if update checking is disabled
+    if not cfg.get("update_check_enabled", True, "misc"):
+        return None
+    
+    # Check the last update check time
+    last_check = int(cfg.get("last_update_check", 0, "misc"))
+    interval = int(cfg.get("update_check_interval", 86400, "misc"))
+    current_time = int(time.time())
+    
+    # Skip if we've checked recently
+    if current_time - last_check < interval:
+        return None
+    
+    try:
+        # Set a short timeout to prevent blocking the application
+        response = requests.get("https://pypi.org/pypi/pybalt/json", timeout=3)
+        
+        # Update the last check time regardless of success
+        cfg.set("last_update_check", str(current_time), "misc")
+        
+        if response.status_code == 200:
+            data = response.json()
+            latest_version = data["info"]["version"]
+            
+            if latest_version != VERSION:
+                return latest_version
+    except (requests.RequestException, KeyError, ValueError):
+        # Don't bother the user if the check fails
+        pass
+    
+    return None
+
+def show_thank_you():
+    """Show a thank you message at most once every 3 hours"""
+    cfg = config.Config()
+    
+    # Check the last thank you time
+    last_thank = int(cfg.get("last_thank", 0, "misc"))
+    current_time = int(time.time())
+    
+    # Show message if it's been more than 3 hours (10800 seconds)
+    if current_time - last_thank >= 10800:
+        print("Thank you for using pybalt! 💖 If you find it useful, consider starring the repository: https://github.com/nichind/pybalt or sponsoring the developer: https://liberapay.com/nichind")
+        
+        # Update the last thank you time
+        cfg.set("last_thank", str(current_time), "misc")
+
 async def main_async():
     parser = create_parser()
     args = parser.parse_args()
+    
+    # Check for updates (max once per update_check_interval, default 24h)
+    latest_version = check_for_updates()
+    if latest_version:
+        print(f"A new version of pybalt is available: {latest_version}")
+        print(f"You're currently using version {VERSION}")
+        print("Update with: pip install --upgrade pybalt")
     
     # Show version information
     if args.version:
@@ -512,8 +570,11 @@ async def main_async():
     # Handle download/remux
     if args.positional or args.url:
         await process_input(args)
+        show_thank_you()
     else:
         parser.print_help()
+
+    
 
 def main():
     run(main_async())
