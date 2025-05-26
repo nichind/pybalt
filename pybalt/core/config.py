@@ -88,6 +88,16 @@ class Config:
             "draw_interval": "0.3",
             "min_redraw_interval": "0.1",
         },
+        "logging": {
+            "enable_file_logging": "True",
+            "log_folder": "",  # Empty means config_dir/logs
+            "log_level": "INFO",
+            "max_log_files": "5",
+            "max_log_size_mb": "10",
+            "log_format": "%%(asctime)s - %%(name)s - %%(levelname)s - %%(message)s",
+            "date_format": "%%Y-%%m-%%d %%H:%%M:%%S",
+            "include_timestamp": "True",
+        },
     }
 
     # Settings that should be converted to numbers (int or float) when retrieved and changed in the config gui
@@ -112,6 +122,8 @@ class Config:
         "draw_interval",
         "min_redraw_interval",
         "last_thank",
+        "max_log_files",
+        "max_log_size_mb",
     }
 
     def __init__(self):
@@ -124,6 +136,15 @@ class Config:
         self._config_accessible = True  # Flag to track if config is accessible
         self.ensure_config_exists()
         self.load_config()
+        
+        # Initialize logger after config is loaded
+        self._setup_logger()
+
+    def _setup_logger(self):
+        """Setup logger for the config module."""
+        from .logging_utils import get_logger
+        self.logger = get_logger("pybalt.config", config=self)
+        self.logger.debug("Config logger initialized")
 
     def _build_key_section_map(self):
         """Build a map of keys to their sections, tracking any duplicate keys."""
@@ -159,7 +180,11 @@ class Config:
             if config_folder_path.is_dir():
                 return config_folder_path
             else:
-                print(f"Warning: PYBALT_CONFIG_DIR points to a non-directory path: {config_folder_path}")
+                error_msg = f"PYBALT_CONFIG_DIR points to a non-directory path: {config_folder_path}"
+                if hasattr(self, 'logger'):
+                    self.logger.warning(error_msg)
+                else:
+                    print(f"Warning: {error_msg}")
 
         # Determine the platform and set the base path accordingly
         system = platform.system()
@@ -188,7 +213,11 @@ class Config:
             if config_file_path.is_file():
                 return config_file_path
             else:
-                print(f"Warning: PYBALT_CONFIG_PATH points to a non-file path: {config_file_path}")
+                error_msg = f"PYBALT_CONFIG_PATH points to a non-file path: {config_file_path}"
+                if hasattr(self, 'logger'):
+                    self.logger.warning(error_msg)
+                else:
+                    print(f"Warning: {error_msg}")
         # If no environment variable is set, use the default path
         return self._get_config_dir() / "settings.ini"
 
@@ -210,11 +239,17 @@ class Config:
                     self.config[section].update(options)
 
                 self.save_config()
-        except (PermissionError, OSError):
+                if hasattr(self, 'logger'):
+                    self.logger.info(f"Created new config file at {self.config_path}")
+        except (PermissionError, OSError) as e:
             # If we can't create the config file/directory due to permissions,
             # mark config as inaccessible but continue with defaults
             self._config_accessible = False
-            print(f"Warning: Cannot create config directory or file at {self.config_path}. Using default values.")
+            error_msg = f"Cannot create config directory or file at {self.config_path}: {e}. Using default values."
+            if hasattr(self, 'logger'):
+                self.logger.warning(error_msg)
+            else:
+                print(f"Warning: {error_msg}")
 
     def load_config(self) -> None:
         """Load the configuration from the file."""
@@ -222,22 +257,50 @@ class Config:
             if self.config_path.exists():
                 self.config.read(self.config_path)
                 self._config_accessible = True
-        except (PermissionError, OSError):
+                if hasattr(self, 'logger'):
+                    self.logger.debug(f"Loaded config from {self.config_path}")
+        except (PermissionError, OSError) as e:
             self._config_accessible = False
-            print(f"Warning: Cannot read config file at {self.config_path}. Using default values.")
+            error_msg = f"Cannot read config file at {self.config_path}: {e}. Using default values."
+            if hasattr(self, 'logger'):
+                self.logger.warning(error_msg)
+            else:
+                print(f"Warning: {error_msg}")
 
     def save_config(self) -> None:
         """Save the current configuration to the file."""
         if not self._config_accessible:
-            print("Warning: Config file is not accessible. Changes will not be saved.")
+            error_msg = "Config file is not accessible. Changes will not be saved."
+            if hasattr(self, 'logger'):
+                self.logger.warning(error_msg)
+            else:
+                print(f"Warning: {error_msg}")
             return
 
         try:
             with open(self.config_path, "w") as config_file:
                 self.config.write(config_file)
-        except (PermissionError, OSError):
+            if hasattr(self, 'logger'):
+                self.logger.debug(f"Saved config to {self.config_path}")
+        except (PermissionError, OSError) as e:
             self._config_accessible = False
-            print(f"Warning: Cannot write to config file at {self.config_path}. Changes will not be saved.")
+            error_msg = f"Cannot write to config file at {self.config_path}: {e}. Changes will not be saved."
+            if hasattr(self, 'logger'):
+                self.logger.error(error_msg)
+            else:
+                print(f"Warning: {error_msg}")
+
+    def get_log_folder(self) -> Path:
+        """
+        Get the log folder path, using config_dir/logs if not specified.
+        
+        Returns:
+            Path to the log folder.
+        """
+        log_folder = self.get("log_folder", section="logging")
+        if not log_folder:
+            return self._get_config_dir() / "logs"
+        return Path(log_folder)
 
     def _find_section_for_key(self, option: str) -> Optional[str]:
         """Find which section a key belongs to if it's unique across sections."""
@@ -955,7 +1018,7 @@ def create_cli_app(config: Config):
             state.edit_value += " "
 
     # Add key handlers for all alphanumeric and special characters
-    for key in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_@#$%^&*()+=:;,<>/\\\"'[]{}|`~":
+    for key in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_@#$%^&?*()+=:;,<>/\\\"'[]{}|`~":
 
         @kb.add(key)
         def handle_char(event, key=key):

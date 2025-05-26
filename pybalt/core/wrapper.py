@@ -894,8 +894,8 @@ class Cobalt:
 
     def __init__(self, *args, **kwargs):
         self.manager = InstanceManager()
-        print(f"DeprecationWarning: Cobalt class is deprecated, use InstanceManager instead")
-        print(f"This was deprecated in version 2025.5, please read the docs for more information. github.com/nichind/pybalt")
+        print("DeprecationWarning: Cobalt class is deprecated, use InstanceManager instead")
+        print("This was deprecated in version 2025.5, please read the docs for more information. github.com/nichind/pybalt")
 
     async def download(self, *args, **kwargs):
         """Download a file using the deprecated Cobalt class"""

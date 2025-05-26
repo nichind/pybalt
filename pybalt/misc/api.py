@@ -1,14 +1,14 @@
 from .. import core, VERSION
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from asyncio import run, sleep, create_task, wait_for, TimeoutError
+from asyncio import sleep, create_task, wait_for, TimeoutError
 import uvicorn
 import sys
 import aiohttp
 import tempfile
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 app = FastAPI()
@@ -39,8 +39,9 @@ async def check_file_size(url, timeout=2):
         - instance_url: The hostname of the instance that provided the file
     """
     try:
-        # Extract instance hostname from URL
-        instance_url = url.split("/")[2] if "://" in url else None
+        # Extract instance hostname from URL using urlparse
+        parsed_url = urlparse(url)
+        instance_url = parsed_url.netloc if parsed_url.netloc else None
 
         # Create a temporary file for the download
         temp_file = Path(tempfile.gettempdir()) / f"pybalt_check_{os.urandom(4).hex()}"
@@ -87,13 +88,15 @@ async def post(request: Request):
     # Set maximum retries to avoid excessive delay
     max_retries = 3
     retries = 0
+    last_response = None
 
     while retries < max_retries:
         # Try to get a response from the first available instance
         response = await manager.first_tunnel(url, ignored_instances=ignored_instances, **request_params)
+        last_response = response  # Save the response in case we need to return it after exhausting retries
 
-        # If not a tunnel response or reached max retries, return whatever we got
-        if response.get("status") != "tunnel" or retries >= max_retries - 1:
+        # If not a tunnel response, return it immediately
+        if response.get("status") != "tunnel":
             return JSONResponse(response)
 
         # For tunnel responses, quickly check if the file has content
@@ -104,17 +107,22 @@ async def post(request: Request):
             if is_valid:
                 # File looks good, return the response
                 return JSONResponse(response)
-            elif instance_url and instance_url not in ignored_instances:
-                # File is empty, add the instance to ignored list and retry
-                ignored_instances.append(instance_url)
+            else:
+                # File is empty or too small
+                if instance_url and instance_url not in ignored_instances:
+                    # Add the instance to ignored list if we have a URL
+                    ignored_instances.append(instance_url)
+
+                # Always increment retries and continue to next attempt
                 retries += 1
                 continue
 
-        # If we couldn't check the file or no URL was provided, return the response
-        return JSONResponse(response)
+        # If we couldn't check the file or no URL was provided,
+        # increment retries and try again
+        retries += 1
 
     # If we exhausted retries, return the last response
-    return JSONResponse(response)
+    return JSONResponse(last_response or {"error": "Failed to download after multiple attempts"})
 
 
 @app.get("/ui", response_class=HTMLResponse)
@@ -162,24 +170,30 @@ HTML_TEMPLATE = (
     <title>pybalt downloader</title>
     <style>
         :root {
-            --bg-color: #121212;
-            --card-color: #1e1e1e;
-            --text-color: #f5f5f5;
-            --accent-color: #3a86ff;
-            --error-color: #ff4c4c;
-            --success-color: #4caf50;
-            --warning-color: #ff9800;
-            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+            --bg-color: #0a0a0a;
+            --card-color: #121212;
+            --text-color: #f8f9fa;
+            --accent-color: #4f46e5;
+            --accent-hover: #6366f1;
+            --error-color: #ef4444;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+            --input-bg: #1e1e1e;
+            --subtle-bg: rgba(255, 255, 255, 0.05);
+            --card-border: 1px solid rgba(255, 255, 255, 0.05);
+            --button-gradient: linear-gradient(135deg, var(--accent-color), #6366f1);
+            --hover-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             display: flex;
@@ -189,62 +203,76 @@ HTML_TEMPLATE = (
             min-height: 100vh;
             padding: 2rem;
             line-height: 1.6;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(80, 70, 229, 0.03) 0%, transparent 30%),
+                radial-gradient(circle at 90% 80%, rgba(100, 100, 255, 0.03) 0%, transparent 30%);
         }
         
         .container {
             width: 100%;
-            max-width: 600px;
+            max-width: 650px;
             background-color: var(--card-color);
-            border-radius: 10px;
-            padding: 2rem;
+            border-radius: 16px;
+            padding: 2.5rem;
             box-shadow: var(--shadow);
-            transition: all 0.3s ease;
+            transition: var(--hover-transition);
+            border: var(--card-border);
+            backdrop-filter: blur(10px);
         }
         
         h1 {
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.8rem;
             text-align: center;
-            font-weight: 500;
+            font-weight: 600;
+            font-size: 2rem;
+            background: linear-gradient(to right, var(--text-color), #a5b4fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.025em;
         }
         
         .input-group {
             display: flex;
-            gap: 10px;
-            margin-bottom: 1.5rem;
+            gap: 12px;
+            margin-bottom: 1.8rem;
+            position: relative;
         }
         
         input {
             flex: 1;
-            padding: 0.8rem 1rem;
+            padding: 1rem 1.2rem;
             border: none;
-            border-radius: 5px;
-            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            background-color: var(--input-bg);
             color: var(--text-color);
             font-size: 1rem;
             outline: none;
-            transition: all 0.2s ease;
+            transition: var(--hover-transition);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
         }
         
         input:focus {
-            background-color: rgba(255, 255, 255, 0.15);
-            box-shadow: 0 0 0 2px rgba(58, 134, 255, 0.5);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.6);
+            background-color: rgba(30, 30, 30, 0.95);
         }
         
         button {
-            padding: 0.8rem 1.5rem;
+            padding: 1rem 1.5rem;
             border: none;
-            border-radius: 5px;
-            background-color: var(--accent-color);
+            border-radius: 12px;
+            background: var(--button-gradient);
             color: white;
             font-size: 1rem;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: var(--hover-transition);
             font-weight: 500;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
         
         button:hover {
-            background-color: #2a75ff;
             transform: translateY(-2px);
+            box-shadow: 0 6px 10px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            filter: brightness(1.1);
         }
         
         button:active {
@@ -252,33 +280,38 @@ HTML_TEMPLATE = (
         }
         
         .response {
-            background-color: rgba(0, 0, 0, 0.2);
-            border-radius: 5px;
-            padding: 1rem;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 1.2rem;
             white-space: pre-wrap;
             word-break: break-word;
             max-height: 300px;
             overflow-y: auto;
             display: none;
+            font-family: 'SF Mono', SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
         
         .response.error {
             border-left: 4px solid var(--error-color);
+            background-color: rgba(239, 68, 68, 0.05);
         }
         
         .response.success {
             border-left: 4px solid var(--success-color);
+            background-color: rgba(16, 185, 129, 0.05);
         }
         
         .loader {
             display: none;
-            width: 1.5rem;
-            height: 1.5rem;
-            border: 3px solid rgba(255, 255, 255, 0.3);
+            width: 2rem;
+            height: 2rem;
+            border: 3px solid rgba(99, 102, 241, 0.1);
             border-radius: 50%;
-            border-top-color: var(--text-color);
-            animation: spin 1s ease-in-out infinite;
-            margin: 0 auto;
+            border-top-color: var(--accent-color);
+            animation: spin 0.8s ease-in-out infinite;
+            margin: 1.5rem auto;
         }
         
         @keyframes spin {
@@ -286,15 +319,24 @@ HTML_TEMPLATE = (
         }
         
         .footer {
-            margin-top: 1.5rem;
+            margin-top: 2rem;
             text-align: center;
             font-size: 0.9rem;
-            opacity: 0.7;
+            opacity: 0.8;
+            width: 100%;
+            max-width: 650px;
         }
         
         .footer a {
             color: var(--accent-color);
             text-decoration: none;
+            transition: var(--hover-transition);
+            font-weight: 500;
+        }
+        
+        .footer a:hover {
+            color: var(--accent-hover);
+            text-decoration: underline;
         }
         
         /* Action buttons styles */
@@ -302,35 +344,45 @@ HTML_TEMPLATE = (
             display: none;
             gap: 1.5rem;
             justify-content: center;
-            margin: 1.5rem 0;
+            margin: 1.8rem 0;
         }
         
         .action-button {
             display: flex;
             flex-direction: column;
             align-items: center;
-            background: none;
-            border: none;
+            background: var(--subtle-bg);
+            border: 1px solid rgba(255, 255, 255, 0.05);
             color: var(--text-color);
             cursor: pointer;
-            padding: 0.5rem;
-            border-radius: 8px;
-            transition: all 0.2s ease;
+            padding: 1rem;
+            border-radius: 12px;
+            transition: var(--hover-transition);
+            min-width: 120px;
         }
         
         .action-button:hover {
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: rgba(255, 255, 255, 0.08);
             transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.1);
         }
         
         .action-button svg {
-            width: 2rem;
-            height: 2rem;
-            margin-bottom: 0.5rem;
+            width: 1.8rem;
+            height: 1.8rem;
+            margin-bottom: 0.7rem;
+            stroke-width: 1.5;
+            transition: all 0.2s ease;
+        }
+        
+        .action-button:hover svg {
+            transform: scale(1.1);
+            stroke: var(--accent-color);
         }
         
         .action-button span {
             font-size: 0.9rem;
+            font-weight: 500;
         }
         
         .success-notification {
@@ -339,22 +391,35 @@ HTML_TEMPLATE = (
             right: 20px;
             background-color: var(--success-color);
             color: white;
-            padding: 0.8rem 1.5rem;
-            border-radius: 5px;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
             box-shadow: var(--shadow);
             opacity: 0;
             transform: translateY(20px);
             transition: opacity 0.3s, transform 0.3s;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 100;
+        }
+        
+        .success-notification::before {
+            content: "✓";
+            font-weight: bold;
+            font-size: 1.1rem;
         }
         
         .instance-count {
             display: inline-flex;
             align-items: center;
             margin-left: 1rem;
-            background-color: rgba(255, 255, 255, 0.1);
-            padding: 0.25rem 0.5rem;
-            border-radius: 12px;
+            background-color: rgba(99, 102, 241, 0.1);
+            padding: 0.3rem 0.7rem;
+            border-radius: 20px;
             font-size: 0.8rem;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            margin-top: 0.5rem;
         }
         
         .instance-count-dot {
@@ -371,9 +436,9 @@ HTML_TEMPLATE = (
         }
         
         @keyframes pulse {
-            0% { opacity: 0.3; }
-            50% { opacity: 1; }
-            100% { opacity: 0.3; }
+            0% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+            100% { opacity: 0.3; transform: scale(0.8); }
         }
         
         /* Warning Modal Styles */
@@ -384,36 +449,55 @@ HTML_TEMPLATE = (
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: rgba(0, 0, 0, 0.7);
+            background-color: rgba(0, 0, 0, 0.8);
             z-index: 1000;
             align-items: center;
             justify-content: center;
+            backdrop-filter: blur(5px);
         }
         
         .modal {
             background-color: var(--card-color);
-            border-radius: 10px;
-            padding: 2rem;
+            border-radius: 16px;
+            padding: 2.5rem;
             max-width: 600px;
             width: 90%;
             box-shadow: var(--shadow);
+            border: var(--card-border);
+            animation: modalEnter 0.3s ease-out;
+        }
+        
+        @keyframes modalEnter {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
         }
         
         .modal-header {
             display: flex;
             align-items: center;
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
             color: var(--warning-color);
         }
         
         .modal-header svg {
-            width: 24px;
-            height: 24px;
-            margin-right: 10px;
+            width: 28px;
+            height: 28px;
+            margin-right: 12px;
+        }
+        
+        .modal-header h2 {
+            font-weight: 600;
+            font-size: 1.4rem;
+            margin: 0;
         }
         
         .modal-content {
-            margin-bottom: 1.5rem;
+            margin-bottom: 2rem;
+            line-height: 1.7;
+        }
+        
+        .modal-content p {
+            margin-bottom: 1rem;
         }
         
         .modal-actions {
@@ -422,66 +506,81 @@ HTML_TEMPLATE = (
         }
         
         .modal-button {
-            padding: 0.7rem 1.2rem;
+            padding: 1rem 1.5rem;
             border: none;
-            border-radius: 5px;
-            background-color: var(--warning-color);
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--warning-color), #f97316);
             color: white;
             font-size: 1rem;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: var(--hover-transition);
+            font-weight: 500;
         }
         
         .modal-button:hover {
-            opacity: 0.9;
+            transform: translateY(-2px);
+            filter: brightness(1.1);
         }
         
         /* Ignored instances styles */
         .ignored-instances {
-            margin-top: 1.5rem;
-            padding: 1rem;
+            margin-top: 1.8rem;
+            padding: 1.2rem;
             background-color: rgba(0, 0, 0, 0.2);
-            border-radius: 5px;
+            border-radius: 12px;
             display: none;
+            border: var(--card-border);
         }
         
         .ignored-instances h3 {
             margin-top: 0;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.8rem;
             font-size: 1rem;
-            font-weight: 500;
+            font-weight: 600;
+            color: var(--accent-color);
         }
         
         .ignored-list {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.5rem;
+            gap: 0.7rem;
         }
         
         .ignored-item {
             display: flex;
             align-items: center;
-            background-color: rgba(255, 255, 255, 0.1);
-            padding: 0.3rem 0.6rem;
-            border-radius: 4px;
+            background-color: var(--subtle-bg);
+            padding: 0.5rem 0.8rem;
+            border-radius: 8px;
             font-size: 0.85rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: var(--hover-transition);
+        }
+        
+        .ignored-item:hover {
+            background-color: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.1);
         }
         
         .ignored-item button {
             background: none;
             border: none;
-            color: var(--error-color);
+            color: var (--error-color);
             cursor: pointer;
             padding: 0;
-            margin-left: 0.5rem;
-            font-size: 1rem;
+            margin-left: 0.7rem;
+            font-size: 1.1rem;
             display: flex;
             align-items: center;
+            box-shadow: none;
         }
         
         .ignored-item button:hover {
             transform: none;
             background: none;
+            color: var(--error-color);
+            filter: brightness(1.2);
+            box-shadow: none;
         }
         
         /* Settings panel styles */
@@ -489,16 +588,25 @@ HTML_TEMPLATE = (
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 1rem;
-            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            gap: 0.6rem;
             cursor: pointer;
             user-select: none;
             color: rgba(255, 255, 255, 0.7);
-            transition: all 0.2s ease;
+            transition: var(--hover-transition);
+            padding: 0.7rem 1rem;
+            border-radius: 10px;
+            background-color: var(--subtle-bg);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            width: fit-content;
+            margin-left: auto;
+            margin-right: auto;
         }
         
         .settings-toggle:hover {
             color: var(--text-color);
+            background-color: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.1);
         }
 
         .settings-toggle svg {
@@ -513,34 +621,68 @@ HTML_TEMPLATE = (
         
         .settings-panel {
             background-color: rgba(0, 0, 0, 0.2);
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
+            border-radius: 12px;
+            padding: 1.8rem;
+            margin-bottom: 1.8rem;
             display: none;
-            max-height: 400px;
+            max-height: 450px;
             overflow-y: auto;
+            border: var(--card-border);
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         .settings-group {
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.8rem;
+            position: relative;
+        }
+        
+        .settings-group::after {
+            content: '';
+            position: absolute;
+            bottom: -0.9rem;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.1), transparent);
         }
         
         .settings-group:last-child {
             margin-bottom: 0;
         }
         
+        .settings-group:last-child::after {
+            display: none;
+        }
+        
         .settings-group h3 {
-            margin-bottom: 0.8rem;
-            font-size: 1rem;
-            font-weight: 500;
+            margin-bottom: 1rem;
+            font-size: 1.05rem;
+            font-weight: 600;
             color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .settings-group h3::before {
+            content: '';
+            display: block;
+            width: 3px;
+            height: 1rem;
+            background-color: var(--accent-color);
+            border-radius: 1px;
         }
         
         .settings-row {
             display: flex;
             flex-wrap: wrap;
-            gap: 1rem;
-            margin-bottom: 1rem;
+            gap: 1.2rem;
+            margin-bottom: 1.2rem;
         }
         
         .settings-row:last-child {
@@ -554,80 +696,167 @@ HTML_TEMPLATE = (
         
         .setting-item label {
             display: block;
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.5rem;
             font-size: 0.9rem;
-            opacity: 0.8;
+            opacity: 0.9;
+            font-weight: 500;
         }
         
         .setting-item select {
             width: 100%;
-            padding: 0.6rem 0.8rem;
+            padding: 0.8rem 1rem;
             border: none;
-            border-radius: 4px;
-            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            background-color: var(--input-bg);
             color: var(--text-color);
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             appearance: none;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 0.8rem center;
+            background-position: right 1rem center;
             background-size: 1rem;
             outline: none;
+            transition: var(--hover-transition);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .setting-item select:focus {
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
         }
         
         .setting-item input[type="text"] {
             width: 100%;
-            padding: 0.6rem 0.8rem;
+            padding: 0.8rem 1rem;
             border: none;
-            border-radius: 4px;
-            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            background-color: var(--input-bg);
             color: var(--text-color);
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             outline: none;
+            transition: var(--hover-transition);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .setting-item input[type="text"]:focus {
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
         }
         
         .setting-item input[type="checkbox"] {
-            margin-right: 0.5rem;
-            width: auto;
-            height: auto;
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
         }
         
         .checkbox-label {
             display: flex;
             align-items: center;
             cursor: pointer;
+            padding: 0.5rem 0;
+            user-select: none;
+        }
+        
+        .checkbox-label::before {
+            content: '';
+            display: inline-block;
+            width: 1.2rem;
+            height: 1.2rem;
+            margin-right: 0.7rem;
+            border-radius: 6px;
+            background-color: var(--input-bg);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: var(--hover-transition);
+        }
+        
+        .setting-item input[type="checkbox"]:checked + .checkbox-label::before {
+            background-color: var(--accent-color);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+            background-size: 1rem;
+            background-position: center;
+            background-repeat: no-repeat;
+            border-color: var(--accent-color);
+        }
+        
+        .setting-item input[type="checkbox"]:focus + .checkbox-label::before {
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
         }
         
         .settings-actions {
             display: flex;
             justify-content: space-between;
-            margin-top: 1rem;
+            margin-top: 1.5rem;
+            gap: 1rem;
         }
         
         .settings-button {
-            padding: 0.5rem 1rem;
-            font-size: 0.9rem;
+            padding: 0.8rem 1.2rem;
+            font-size: 0.95rem;
             background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            flex: 1;
         }
         
         .settings-button:hover {
-            background-color: rgba(255, 255, 255, 0.2);
+            background-color: rgba(255, 255, 255, 0.15);
         }
         
         .settings-button.save {
-            background-color: var(--accent-color);
+            background: var(--button-gradient);
         }
         
         .settings-button.save:hover {
-            background-color: #2a75ff;
+            filter: brightness(1.1);
         }
         
         .settings-button.reset {
-            background-color: var(--error-color);
+            background: linear-gradient(135deg, #ef4444, #dc2626);
         }
         
         .settings-button.reset:hover {
-            background-color: #e33e3e;
+            filter: brightness(1.1);
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        
+        /* Responsive styles */
+        @media (max-width: 640px) {
+            .container {
+                padding: 1.5rem;
+            }
+            
+            h1 {
+                font-size: 1.7rem;
+            }
+            
+            .action-buttons {
+                flex-wrap: wrap;
+            }
+            
+            .action-button {
+                min-width: calc(50% - 0.75rem);
+            }
+            
+            .settings-button {
+                padding: 0.7rem 1rem;
+            }
         }
     </style>
 </head>
@@ -732,8 +961,8 @@ HTML_TEMPLATE = (
                 </div>
                 <div class="settings-row">
                     <div class="setting-item">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="youtube-hls">
+                        <input type="checkbox" id="youtube-hls">
+                        <label class="checkbox-label" for="youtube-hls">
                             <span>Use HLS</span>
                         </label>
                     </div>
@@ -744,22 +973,22 @@ HTML_TEMPLATE = (
                 <h3>TikTok & Twitter Settings</h3>
                 <div class="settings-row">
                     <div class="setting-item">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="tiktok-full-audio">
+                        <input type="checkbox" id="tiktok-full-audio">
+                        <label class="checkbox-label" for="tiktok-full-audio">
                             <span>TikTok Full Audio</span>
                         </label>
                     </div>
                     <div class="setting-item">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="tiktok-h265">
+                        <input type="checkbox" id="tiktok-h265">
+                        <label class="checkbox-label" for="tiktok-h265">
                             <span>TikTok H.265</span>
                         </label>
                     </div>
                 </div>
                 <div class="settings-row">
                     <div class="setting-item">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="twitter-gif">
+                        <input type="checkbox" id="twitter-gif">
+                        <label class="checkbox-label" for="twitter-gif">
                             <span>Twitter Download as GIF</span>
                         </label>
                     </div>
@@ -782,14 +1011,14 @@ HTML_TEMPLATE = (
                 </div>
                 <div class="settings-row">
                     <div class="setting-item">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="always-proxy">
+                        <input type="checkbox" id="always-proxy">
+                        <label class="checkbox-label" for="always-proxy">
                             <span>Always Use Proxy</span>
                         </label>
                     </div>
                     <div class="setting-item">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="disable-metadata">
+                        <input type="checkbox" id="disable-metadata">
+                        <label class="checkbox-label" for="disable-metadata">
                             <span>Disable Metadata</span>
                         </label>
                     </div>
@@ -1227,8 +1456,8 @@ if __name__ == "__main__":
         try:
             port = int(sys.argv[1])
         except ValueError:
-            print(f"Invalid port: {sys.argv[1]}")
+            # print(f"Invalid port: {sys.argv[1]}")
             sys.exit(1)
 
-    print(f"Starting pybalt API server on port {port or config.get_as_number('port', 8009, 'api')}")
+    # print(f"Starting pybalt API server on port {port or config.get_as_number('port', 8009, 'api')}")
     run_api(port=port)
