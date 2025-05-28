@@ -1,4 +1,4 @@
-from aiohttp import ClientSession, ClientResponse, ClientTimeout, TCPConnector
+from aiohttp import ClientSession, ClientTimeout, TCPConnector
 from typing import (
     Dict,
     Callable,
@@ -1214,7 +1214,7 @@ class HttpClient:
                             tracker.update_download(download_id, total_size=total_size, file_path=file_path)
 
                         # Download the file with optimized buffer handling
-                        buffer_size = self.config.get_as_number("download_buffer_size", 1024 * 1024, "network")
+                        buffer_size = self.config.get_as_number("download_buffer_size", 20971520, "network")
                         logger.debug(f"Using buffer size: {buffer_size / 1024:.0f}KB")
 
                         async with aopen(file_path, "wb") as f:

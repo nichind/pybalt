@@ -9,7 +9,7 @@ import click
 from typing import Dict, Optional, List, Any
 
 from .config import Config
-from .client import HttpClient
+from .network import HttpClient
 
 
 class LocalInstanceError(Exception):

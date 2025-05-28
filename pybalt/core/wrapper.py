@@ -1,5 +1,5 @@
 from .config import Config
-from .client import HttpClient
+from .network import HttpClient
 from .local import LocalInstance
 from .remux import Remuxer
 from .logging_utils import get_logger
@@ -13,7 +13,6 @@ from typing import (
     Unpack,
     AsyncGenerator,
     Tuple,
-    Set,
 )
 from pathlib import Path
 import logging

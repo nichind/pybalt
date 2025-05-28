@@ -46,7 +46,7 @@ class Config:
             "callback_rate": "1.000",
             "max_concurrent_downloads": "2",
             "max_retries_tunnel": "10",
-            "download_buffer_size": "1048576",  # equals to 1 Mb
+            "download_buffer_size": "20971520",  # equals to 20 Mb
             "bypass_proxy_for_localhost": "True",
             "progressive_timeout": "False",
         },
@@ -136,15 +136,15 @@ class Config:
         self._config_accessible = True  # Flag to track if config is accessible
         self.ensure_config_exists()
         self.load_config()
-        
+
         # Initialize logger after config is loaded
         self._setup_logger()
 
-    def _setup_logger(self):
+    def _setup_logger(self, _from: str = __name__):
         """Setup logger for the config module."""
         from .logging_utils import get_logger
+
         self.logger = get_logger("pybalt.config", config=self)
-        self.logger.debug("Config logger initialized")
 
     def _build_key_section_map(self):
         """Build a map of keys to their sections, tracking any duplicate keys."""
@@ -181,7 +181,7 @@ class Config:
                 return config_folder_path
             else:
                 error_msg = f"PYBALT_CONFIG_DIR points to a non-directory path: {config_folder_path}"
-                if hasattr(self, 'logger'):
+                if hasattr(self, "logger"):
                     self.logger.warning(error_msg)
                 else:
                     print(f"Warning: {error_msg}")
@@ -214,7 +214,7 @@ class Config:
                 return config_file_path
             else:
                 error_msg = f"PYBALT_CONFIG_PATH points to a non-file path: {config_file_path}"
-                if hasattr(self, 'logger'):
+                if hasattr(self, "logger"):
                     self.logger.warning(error_msg)
                 else:
                     print(f"Warning: {error_msg}")
@@ -239,14 +239,14 @@ class Config:
                     self.config[section].update(options)
 
                 self.save_config()
-                if hasattr(self, 'logger'):
+                if hasattr(self, "logger"):
                     self.logger.info(f"Created new config file at {self.config_path}")
         except (PermissionError, OSError) as e:
             # If we can't create the config file/directory due to permissions,
             # mark config as inaccessible but continue with defaults
             self._config_accessible = False
             error_msg = f"Cannot create config directory or file at {self.config_path}: {e}. Using default values."
-            if hasattr(self, 'logger'):
+            if hasattr(self, "logger"):
                 self.logger.warning(error_msg)
             else:
                 print(f"Warning: {error_msg}")
@@ -257,12 +257,12 @@ class Config:
             if self.config_path.exists():
                 self.config.read(self.config_path)
                 self._config_accessible = True
-                if hasattr(self, 'logger'):
+                if hasattr(self, "logger"):
                     self.logger.debug(f"Loaded config from {self.config_path}")
         except (PermissionError, OSError) as e:
             self._config_accessible = False
             error_msg = f"Cannot read config file at {self.config_path}: {e}. Using default values."
-            if hasattr(self, 'logger'):
+            if hasattr(self, "logger"):
                 self.logger.warning(error_msg)
             else:
                 print(f"Warning: {error_msg}")
@@ -271,7 +271,7 @@ class Config:
         """Save the current configuration to the file."""
         if not self._config_accessible:
             error_msg = "Config file is not accessible. Changes will not be saved."
-            if hasattr(self, 'logger'):
+            if hasattr(self, "logger"):
                 self.logger.warning(error_msg)
             else:
                 print(f"Warning: {error_msg}")
@@ -280,12 +280,12 @@ class Config:
         try:
             with open(self.config_path, "w") as config_file:
                 self.config.write(config_file)
-            if hasattr(self, 'logger'):
+            if hasattr(self, "logger"):
                 self.logger.debug(f"Saved config to {self.config_path}")
         except (PermissionError, OSError) as e:
             self._config_accessible = False
             error_msg = f"Cannot write to config file at {self.config_path}: {e}. Changes will not be saved."
-            if hasattr(self, 'logger'):
+            if hasattr(self, "logger"):
                 self.logger.error(error_msg)
             else:
                 print(f"Warning: {error_msg}")
@@ -293,7 +293,7 @@ class Config:
     def get_log_folder(self) -> Path:
         """
         Get the log folder path, using config_dir/logs if not specified.
-        
+
         Returns:
             Path to the log folder.
         """
