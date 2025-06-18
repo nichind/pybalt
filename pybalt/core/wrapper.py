@@ -18,6 +18,7 @@ from pathlib import Path
 import logging
 import asyncio
 from ipaddress import ip_address
+from time import time
 import os
 
 
@@ -570,6 +571,8 @@ class InstanceManager:
         remux: bool = False,
         min_file_size: int = 1024,  # Default 1KB minimum size
         max_retries: int = None,  # Prevent infinite retry loops
+        filename: Optional[str] = None,
+        folder_path: Optional[Path | str] = None,
         **params: Unpack[CobaltRequestParams],
     ) -> AsyncGenerator[Path | List[Path] | Tuple[str, Optional[Path | List[Path]], Optional[Exception]], None]:
         """
@@ -634,7 +637,6 @@ class InstanceManager:
 
                     if response.get("status", "") == "tunnel" or response.get("status", "") == "redirect":
                         download_url = response.get("url")
-                        filename = response.get("filename")
 
                         # Get the instance that responded
                         responding_instance = response.get("instance_info", {}).get("url")
@@ -642,7 +644,8 @@ class InstanceManager:
                         # Create a download task using detached_download
                         download_task = await self.client.detached_download(
                             url=download_url,
-                            filename=filename,
+                            filename=filename or response.get("filename"),
+                            folder_path=folder_path,
                             timeout=self.config.get("download_timeout", 60),
                             progressive_timeout=True,
                         )
@@ -851,6 +854,8 @@ class InstanceManager:
         ignored_instances: Optional[List[str]] = None,
         only_path: bool = True,
         remux: bool = False,
+        filename: Optional[str] = None,
+        folder_path: Optional[Path | str] = None,
         **params: Unpack[CobaltRequestParams],
     ) -> Path | List[Path] | Tuple[str, Optional[Path], Optional[Exception]] | List[Tuple[str, Optional[Path], Optional[Exception]]]:
         """
@@ -870,7 +875,7 @@ class InstanceManager:
         """
         results = []
         async for result in self.download_generator(
-            url=url, urls=urls, ignored_instances=ignored_instances, only_path=only_path, remux=remux, **params
+            url=url, urls=urls, ignored_instances=ignored_instances, only_path=only_path, remux=remux, filename=filename, folder_path=folder_path, **params
         ):
             results.append(result)
         if only_path:
@@ -899,3 +904,10 @@ class Cobalt:
     async def download(self, *args, **kwargs):
         """Download a file using the deprecated Cobalt class"""
         return await self.manager.download(*args, **kwargs)
+
+
+if Config().get("last_warn", 0, "misc") < time() - 60 * 60 * 24:
+    print("!!! THIS SOFTWARE COMES WITH NO WARRANTY !!!")
+    print("When downloading files, you are responsible for ensuring the safety of the content. Downloading files from untrusted instances may expose you to malware or other risks.")
+    print("Please use this software responsibly and at your own risk.")
+    Config().set("last_warn", str(time()), "misc")

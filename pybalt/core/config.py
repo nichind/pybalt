@@ -77,6 +77,7 @@ class Config:
             "update_check_enabled": "True",
             "allow_bulk_download": "True",
             "last_thank": "0",
+            "last_warn": "0",
         },
         "display": {
             "enable_tracker": "True",
@@ -124,6 +125,7 @@ class Config:
         "last_thank",
         "max_log_files",
         "max_log_size_mb",
+        "last_warn"
     }
 
     def __init__(self):
