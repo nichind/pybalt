@@ -401,7 +401,8 @@ The API server exposes the following endpoints:
 
 ## Web UI
 
-![image](https://github.com/user-attachments/assets/a0d81cf1-ffbf-48b1-845c-e2eb70332b30)
+![{3896D5C8-0FC7-46D8-8B33-4669CA1EFADD}](https://github.com/user-attachments/assets/80acf3b2-765e-45da-ad56-6e6a31679e28)
+
 
 
 The API server includes a comprehensive web UI that allows you to:
