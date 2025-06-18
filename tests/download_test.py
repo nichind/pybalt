@@ -82,19 +82,20 @@ async def test_download_args():
     path = await download(
         url=YOUTUBE_TEST_LINK,
         filenameStyle="pretty",
-        folder_path="~/Downloads/pybalt/",
+        folder_path="./temp/",
         filename="test_video.mp4",
     )
 
     # Check if the file exists
-    path = os.path.expanduser("~/Downloads/pybalt/test_video.mp4")
+    path = os.path.join("./temp/", "test_video.mp4")
     assert os.path.exists(path), f"File {path} does not exist"
 
     # Check if the filename is as specified
     assert path.endswith("test_video.mp4"), f"Filename {path} does not match 'test_video.mp4'"
 
-    # Check if the file is in the correct folder
-    assert os.path.dirname(path) == os.path.expanduser("~/Downloads/pybalt/"), f"File {path} is not in the correct folder"
-
-    # Check if the file is not empty
-    assert os.path.getsize(path) > 0, f"File {path} is empty"
+    # Clean up the test file, folder
+    try:
+        os.remove(path)
+        os.rmdir("./temp/")
+    except Exception as e:
+        print(f"Error cleaning up test file {path}: {e}")

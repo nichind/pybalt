@@ -67,12 +67,7 @@ class ColoredFormatter(logging.Formatter):
 
 
 def setup_logger(
-    name: str, 
-    level: int = logging.INFO, 
-    debug: bool = False, 
-    include_timestamp: bool = True, 
-    force_console: bool = False,
-    config=None
+    name: str, level: int = logging.INFO, debug: bool = False, include_timestamp: bool = True, force_console: bool = False, config=None
 ) -> logging.Logger:
     """
     Configure a logger with colored output and optional file logging
@@ -119,7 +114,7 @@ def setup_logger(
 def _add_file_handler(logger: logging.Logger, config, debug: bool = False):
     """
     Add a rotating file handler to the logger.
-    
+
     Args:
         logger: Logger instance to add handler to
         config: Config object for settings
@@ -135,23 +130,23 @@ def _add_file_handler(logger: logging.Logger, config, debug: bool = False):
 
     # Create log file path
     log_file = log_folder / "pybalt.log"
-    
+
     # Get file logging settings
     max_size_mb = config.get_as_number("max_log_size_mb", fallback=10, section="logging")
     max_files = config.get_as_number("max_log_files", fallback=5, section="logging")
     log_level_str = config.get("log_level", fallback="INFO", section="logging").upper()
-    
+
     # Convert log level string to logging level
     log_level = getattr(logging, log_level_str, logging.INFO)
     if debug:
         log_level = logging.DEBUG
-    
+
     try:
         # Create rotating file handler
         file_handler = logging.handlers.RotatingFileHandler(
             log_file,
             maxBytes=int(max_size_mb * 1024 * 1024),  # Convert MB to bytes
-            backupCount=int(max_files)
+            backupCount=int(max_files),
         )
         file_handler.setLevel(log_level)
 
@@ -159,7 +154,7 @@ def _add_file_handler(logger: logging.Logger, config, debug: bool = False):
         log_format = config.get("log_format", fallback="%(asctime)s - %(name)s - %(levelname)s - %(message)s", section="logging")
         date_format = config.get("date_format", fallback="%Y-%m-%d %H:%M:%S", section="logging")
         include_timestamp = config.get("include_timestamp", fallback=True, section="logging")
-        
+
         # Create file formatter (no colors for file output)
         if include_timestamp:
             file_formatter = logging.Formatter(log_format, datefmt=date_format)
@@ -167,12 +162,12 @@ def _add_file_handler(logger: logging.Logger, config, debug: bool = False):
             # Remove timestamp from format if disabled
             simple_format = log_format.replace("%(asctime)s - ", "")
             file_formatter = logging.Formatter(simple_format)
-        
+
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
-        
+
         logger.debug(f"File logging enabled: {log_file} (max {max_size_mb}MB, {max_files} files)")
-        
+
     except (PermissionError, OSError) as e:
         logger.warning(f"Cannot create log file {log_file}: {e}")
     except Exception as e:
@@ -195,6 +190,7 @@ def get_logger(name: str, debug: Optional[bool] = None, config=None) -> logging.
     if config is None:
         try:
             from .config import Config
+
             config = Config()
         except ImportError:
             # Fallback if config import fails

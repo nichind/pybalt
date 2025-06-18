@@ -125,7 +125,7 @@ class Config:
         "last_thank",
         "max_log_files",
         "max_log_size_mb",
-        "last_warn"
+        "last_warn",
     }
 
     def __init__(self):

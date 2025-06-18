@@ -875,7 +875,14 @@ class InstanceManager:
         """
         results = []
         async for result in self.download_generator(
-            url=url, urls=urls, ignored_instances=ignored_instances, only_path=only_path, remux=remux, filename=filename, folder_path=folder_path, **params
+            url=url,
+            urls=urls,
+            ignored_instances=ignored_instances,
+            only_path=only_path,
+            remux=remux,
+            filename=filename,
+            folder_path=folder_path,
+            **params,
         ):
             results.append(result)
         if only_path:
@@ -908,6 +915,8 @@ class Cobalt:
 
 if Config().get("last_warn", 0, "misc") < time() - 60 * 60 * 24:
     print("!!! THIS SOFTWARE COMES WITH NO WARRANTY !!!")
-    print("When downloading files, you are responsible for ensuring the safety of the content. Downloading files from untrusted instances may expose you to malware or other risks.")
+    print(
+        "When downloading files, you are responsible for ensuring the safety of the content. Downloading files from untrusted instances may expose you to malware or other risks."
+    )
     print("Please use this software responsibly and at your own risk.")
     Config().set("last_warn", str(time()), "misc")
