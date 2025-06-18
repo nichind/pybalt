@@ -543,7 +543,7 @@ def show_thank_you():
     # Show message if it's been more than 3 hours (10800 seconds)
     if current_time - last_thank >= 10800:
         print(
-            "Thank you for using pybalt! 💖 If you find it useful, consider starring the repository: https://github.com/nichind/pybalt or sponsoring the developer: https://liberapay.com/nichind"
+            "Thank you for using pybalt! 💖 If you find it useful, consider starring the repository: https://github.com/nichind/pybalt or sponsoring the developer: https://boosty.to/nichind"
         )
 
         # Update the last thank you time
