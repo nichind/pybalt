@@ -11,7 +11,7 @@ from .core import (
 from .misc.tracker import get_tracker
 
 # pybalt version
-VERSION = "2025.6.1"
+VERSION = "2025.6.2"
 
 # Initialize tracker
 tracker = get_tracker()

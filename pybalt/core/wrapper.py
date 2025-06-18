@@ -740,7 +740,8 @@ class InstanceManager:
                                 # Create a download task for this item
                                 download_task = await self.client.detached_download(
                                     url=item_url,
-                                    filename=item_filename,
+                                    filename=filename or response.get("filename"),
+                                    folder_path=folder_path,
                                     timeout=self.config.get("download_timeout", 60),
                                     progressive_timeout=True,
                                 )
