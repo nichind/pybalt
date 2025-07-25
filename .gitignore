@@ -167,3 +167,4 @@ cython_debug/
 .gitignore
 .gitattributes
 .vscode/
+/test-config.ini

@@ -3,5 +3,5 @@ requires-python = ">=3.11"
 
 [[package]]
 name = "pybalt"
-version = "2025.5.7"
+version = "2025.7.1"
 source = { editable = "." }

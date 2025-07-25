@@ -38,8 +38,8 @@ class Config:
         "network": {
             "use_system_proxy": "True",
             "proxy": "",
-            "timeout": "4",
-            "download_timeout": "4",
+            "timeout": "30",
+            "download_timeout": "30",
             "max_retries": "2",
             "download_retries": "2",
             "retry_delay": "0.5",

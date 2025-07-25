@@ -609,6 +609,9 @@ class InstanceManager:
         for url in urls:
             complete_urls += self.client.detect_playlist(url=url)
 
+        # Remove False params
+        params = {k: v for k, v in params.items() if v is not False}
+
         # Make a copy of the ignored_instances list to avoid modifying the original
         current_ignored_instances = list(ignored_instances or [])
 

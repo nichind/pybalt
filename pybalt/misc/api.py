@@ -102,6 +102,7 @@ async def post(request: Request):
         # For tunnel responses, quickly check if the file has content
         download_url = response.get("url")
         if download_url:
+            print(f"Checking file size for {download_url} (attempt {retries + 1})")
             is_valid, instance_url = await check_file_size(download_url)
 
             if is_valid:
